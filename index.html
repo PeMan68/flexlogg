@@ -171,7 +171,7 @@ let E = [];
 let T = {};          // överfört till flexappen: dag -> {at, in, out, dur}
 let tab = 'stampla';
 let SM = { kind: 'now' };          // stamp-time mode
-let logDay = dayStart(Date.now());
+let logDay = dayStart(Date.now()), logWeek = weekMonday(Date.now());
 let flexWeek = weekMonday(Date.now());
 let needsRender = false;
 
@@ -444,21 +444,26 @@ function viewStamp() {
 
 /* ---------- view: logg ---------- */
 function viewLog() {
-  const s = daySummary(logDay), now = Date.now();
-  const list = s.entries.slice().sort((a, b) => a.start - b.start);
-  let h = '<div class="card navbar"><button data-logday="-1">‹</button><div class="ttl">' + esc(longDate(logDay)) + '</div><button data-logday="1">›</button></div>';
-  if (logDay !== dayStart(now)) h += '<div class="row" style="justify-content:center"><button class="chip" data-logday="0">Till idag</button></div>';
-  h += '<div class="card"><div class="row between"><span class="mute">Arbetstid' + (T[dk(logDay)] ? ' <span class="tag" style="color:var(--ok)">✓ överförd</span>' : '') + '</span><b>' + fmtDur(s.total) + '</b></div><div class="row between small"><span class="mute">varav utanför normaltid</span><span>' + fmtDur(s.outside) + '</span></div></div>';
-  h += '<div class="card">';
-  if (!list.length) h += '<div class="empty">Inga stämplingar den här dagen.</div>';
-  list.forEach(e => {
-    const c = cat(e.cat) || { name: '(borttagen kategori)', color: '#999' };
-    const ind = c.type === 'sub' ? '&nbsp;&nbsp;↳ ' : '';
-    const startTxt = dayStart(e.start) === logDay ? clock(e.start) : dm(e.start) + ' ' + clock(e.start);
-    const endTxt = e.end == null ? 'pågår' : (dayStart(e.end) === logDay ? clock(e.end) : dm(e.end) + ' ' + clock(e.end));
-    h += '<div class="entry" data-edit="' + esc(e.id) + '"><span class="dot" style="background:' + esc(c.color) + '"></span><span>' + ind + esc(c.name) + (e.note ? '<br><span class="mute small">💬 ' + esc(e.note) + '</span>' : '') + '</span><span class="t">' + startTxt + '–' + endTxt + '<br><span class="mute small">' + fmtDur((e.end ?? now) - e.start) + '</span></span></div>';
+  const now = Date.now(), today = dayStart(now);
+  const days = [0,1,2,3,4,5,6].map(i => daySummary(addDays(logWeek, i)));
+  const total = days.reduce((a, s) => a + s.total, 0), outside = days.reduce((a, s) => a + s.outside, 0);
+  let h = '<div class="card navbar"><button data-logweek="-1">‹</button><div class="ttl">Vecka ' + isoWeek(logWeek) + '<div class="small mute">' + dm(logWeek) + '–' + dm(addDays(logWeek, 6)) + '</div></div><button data-logweek="1">›</button></div>';
+  if (logWeek !== weekMonday(now)) h += '<div class="row" style="justify-content:center"><button class="chip" data-logweek="0">Till denna vecka</button></div>';
+  h += '<div class="card"><div class="row between"><span class="mute">Arbetstid</span><b>' + fmtDur(total) + '</b></div><div class="row between small"><span class="mute">varav utanför normaltid</span><span>' + fmtDur(outside) + '</span></div></div>';
+  days.forEach((s, i) => {
+    const day = s.day, list = s.entries.slice().sort((a, b) => a.start - b.start);
+    h += '<div class="row between" style="margin:16px 2px 6px"><b>' + WDL[i] + (day === today ? ' <span class="small mute">(idag)</span>' : '') + '</b><span class="small mute">' + (T[dk(day)] ? '<span style="color:var(--ok)">✓ överförd</span> ' : '') + (s.total ? fmtDur(s.total) : '') + ' <button class="chip" data-add="' + day + '">+</button></span></div>';
+    if (!list.length) return;
+    h += '<div class="card">';
+    list.forEach(e => {
+      const c = cat(e.cat) || { name: '(borttagen kategori)', color: '#999' };
+      const ind = c.type === 'sub' ? '&nbsp;&nbsp;↳ ' : '';
+      const startTxt = dayStart(e.start) === day ? clock(e.start) : dm(e.start) + ' ' + clock(e.start);
+      const endTxt = e.end == null ? 'pågår' : (dayStart(e.end) === day ? clock(e.end) : dm(e.end) + ' ' + clock(e.end));
+      h += '<div class="entry" data-edit="' + esc(e.id) + '"><span class="dot" style="background:' + esc(c.color) + '"></span><span>' + ind + esc(c.name) + (e.note ? '<br><span class="mute small">💬 ' + esc(e.note) + '</span>' : '') + '</span><span class="t">' + startTxt + '–' + endTxt + '<br><span class="mute small">' + fmtDur((e.end ?? now) - e.start) + '</span></span></div>';
+    });
+    h += '</div>';
   });
-  h += '</div><button class="btn block" data-add>+ Lägg till stämpling</button>';
   return h;
 }
 /* Poster som hör ihop med e: för en delpost huvudposten den startade (startedBy),
@@ -481,7 +486,7 @@ function deleteEntries(e, extra) {
 }
 function entryLabel(x) {
   const c = cat(x.cat) || { name: '(borttagen kategori)' };
-  const d = t => (dayStart(t) === logDay ? '' : dm(t) + ' ') + clock(t);
+  const d = t => dm(t) + ' ' + clock(t);
   return c.name + ' ' + d(x.start) + '–' + (x.end == null ? 'pågår' : d(x.end));
 }
 function confirmDelete(e, dep) {
@@ -496,7 +501,7 @@ function confirmDelete(e, dep) {
   h += '<div class="row" style="margin-top:16px;gap:8px;flex-wrap:wrap">' +
     '<button class="btn sec" id="cNo">Avbryt</button>' +
     (isSub ? '<button class="btn danger" id="cOne" style="margin-left:auto">Bara delposten</button><button class="btn danger" id="cAll">Även huvudposten</button>'
-           : '<button class="btn danger" id="cAll" style="margin-left:auto">Ta bort ' + (1 + dep.all.length) + ' poster</button>') + '</div>';
+           : '<button class="btn danger" id="cAll" style="margin-left:auto">' + (dep.all.length ? 'Ta bort ' + (1 + dep.all.length) + ' poster' : 'Ta bort posten') + '</button>') + '</div>';
   openModal(h, r => {
     r.querySelector('#cNo').onclick = closeModal;
     const one = r.querySelector('#cOne'); if (one) one.onclick = () => deleteEntries(e, []);
@@ -519,7 +524,7 @@ function editEntry(id) {
     if (del) del.onclick = () => {
       const dep = dependents(e);
       const simple = dep.all.length && !dep.partial.length && dep.all.every(x => x.start === e.start && x.end === e.end);
-      if (!dep.all.length) {
+      if (!dep.all.length && !dep.partial.length) {
         if (!del.dataset.sure) { del.dataset.sure = 1; del.textContent = 'Säker?'; return; }
         return deleteEntries(e, []);
       }
@@ -907,7 +912,7 @@ $('#nav').addEventListener('click', ev => {
 });
 const view = $('#view');
 view.addEventListener('click', ev => {
-  const t = ev.target.closest('[data-press],[data-chip],[data-logday],[data-edit],[data-add],[data-week],[data-copyday],[data-copyweek],[data-mark],[data-unmark],[data-markall],[data-gotoweek],[data-up],[data-down],[data-del],[data-unarch],[data-addcat],[data-csv],[data-savebk],[data-restore],[data-addsched],[data-sdel],[data-skind],[data-sstep],[data-cmode],[data-bar]');
+  const t = ev.target.closest('[data-press],[data-chip],[data-logweek],[data-edit],[data-add],[data-week],[data-copyday],[data-copyweek],[data-mark],[data-unmark],[data-markall],[data-gotoweek],[data-up],[data-down],[data-del],[data-unarch],[data-addcat],[data-csv],[data-savebk],[data-restore],[data-addsched],[data-sdel],[data-skind],[data-sstep],[data-cmode],[data-bar]');
   if (!t) return;
   const d = t.dataset;
   if (d.press) return press(d.press);
@@ -919,9 +924,9 @@ view.addEventListener('click', ev => {
     if (SM.kind === 'abs') { const i = $('#absInput'); i && i.focus(); }
     return;
   }
-  if (d.logday != null) { logDay = d.logday === '0' ? dayStart(Date.now()) : addDays(logDay, Number(d.logday)); return render(); }
+  if (d.logweek != null) { logWeek = d.logweek === '0' ? weekMonday(Date.now()) : addDays(logWeek, 7 * Number(d.logweek)); return render(); }
   if (d.edit) return editEntry(d.edit);
-  if (d.add != null) return editEntry(null);
+  if (d.add != null) { logDay = Number(d.add) || dayStart(Date.now()); return editEntry(null); }
   if (d.week != null) { flexWeek = d.week === '0' ? weekMonday(Date.now()) : addDays(flexWeek, 7 * Number(d.week)); return render(); }
   if (d.mark || d.unmark || d.markall != null) {
     const its = weekItems(weekData(flexWeek), flexWeek);
