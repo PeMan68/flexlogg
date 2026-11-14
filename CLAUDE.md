@@ -27,7 +27,6 @@ Publiceras via GitHub Pages från branch `master`, rot. Ingen byggprocess, inga 
     första har `from: ''` (= från början). Varje dag räknas med schemat som gällde då
     (`hoursFor(day)`), så historiken ändras inte när flexramen ändras.
   - `lunch` – minuter som jobbappen alltid drar (60). Läggs på utstämplingen i förslaget.
-  - `stdIn` – föreslagen instämpling när ingen stämpling finns inom flexramen (08:00).
   - `offDays: 'separate'|'prev'|'next'` – vart tid på dagar utan flexram (helg) förs.
   - `v` – settings-version (2), används för engångsmigreringar.
 - `E` (poster): `[{ id, cat, start, end|null, startedBy? }]`, ms-tidsstämplar. `end: null` = pågår.
@@ -43,7 +42,7 @@ Publiceras via GitHub Pages från branch `master`, rot. Ingen byggprocess, inga 
 - Stämpeltid: "Nu", −5/−15/−30 min eller valfri tid väljs *innan* man trycker; återgår till Nu.
 - Arbetstid per dag = union av alla work/sub-intervall (ingen dubbelräkning).
 - Förslag per dag (`proposal()`): total arbetstid inkl. kvälls-/helgtid placeras inom flexramen.
-  In = första stämpling inom ramen, annars `stdIn`. Ut = In + arbetstid + lunch. Går den över
+  In = första stämpling inom ramen, annars ramens start. Ut = In + arbetstid + lunch. Går den över
   ramens slut flyttas In tidigare; ryms det ändå inte visas överskottet.
 - Användaren loggar sin faktiska lunch i Flexlogg (stoppar Arbete) och stämplar inte lunch i jobbappen.
 - Statistik: vecka/månad/halvår/år. Delkategorier i % av sin huvudkategori + rad "Övrigt".

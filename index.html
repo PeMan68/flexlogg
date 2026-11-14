@@ -167,7 +167,7 @@ const DEFAULT_SETTINGS = {
   offDays: 'separate'
 };
 let S = normalizeSettings({});
-const APP_VERSION = 'v9';   // håll lika med CACHE i sw.js
+const APP_VERSION = 'v10';   // håll lika med CACHE i sw.js
 let E = [];
 let T = {};        // överfört till flexappen: dag -> {at, in, out, dur}
 let tab = 'stampla';
@@ -627,7 +627,7 @@ function viewFlex() {
     const parts = Object.entries(s.byCat).filter(([id]) => cat(id) && cat(id).type !== 'work').map(([id, t]) => '<span class="tag">' + esc(cat(id).name) + ' ' + fmtDur(t) + '</span>').join(' ');
     const done = it && it.state === 'done';
     h += '<div class="day"' + (done ? ' style="opacity:.6"' : '') + '><div class="row between"><b>' + WDL[i] + ' ' + dm(s.day) + '</b>' + (p ? '<button class="copy" data-copyday="' + i + '">Kopiera</button>' : '') + '</div>';
-    if (p) h += '<div class="prop">In ' + clock(p.in) + ' &nbsp;→&nbsp; Ut ' + clock(p.out) + ' <span class="mute small">(' + fmtDur(p.dur) + ')</span></div>';
+    if (p) h += '<div class="prop">In ' + clock(p.in) + ' &nbsp;→&nbsp; Ut ' + clock(p.out) + ' <span class="mute small">(' + fmtDur(p.dur) + (S.lunch ? ' + ' + S.lunch + ' min rast' : '') + ')</span></div>';
     else if (s.total) h += '<div class="small" style="color:var(--warn)">Ingen normal arbetstid denna dag' + (S.offDays === 'separate' ? ' – se nedan' : ' – flyttad till annan dag') + '</div>';
     h += '<div class="small mute">Loggat ' + fmtDur(s.total) + (s.outside ? ', varav ' + fmtDur(s.outside) + ' utanför normaltid' : '') + (w.extra[i] ? ' · +' + fmtDur(w.extra[i]) + ' från fridag' : '') + '</div>';
     if (p && p.over) h += '<div class="small" style="color:var(--bad)">Ryms inte inom normaltid: ' + fmtDur(p.over) + ' går över</div>';
