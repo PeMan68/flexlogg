@@ -461,6 +461,48 @@ function viewLog() {
   h += '</div><button class="btn block" data-add>+ Lägg till stämpling</button>';
   return h;
 }
+/* Poster som hör ihop med e: för en delpost huvudposten den startade (startedBy),
+   för en huvudpost delposterna av dess kategori som ryms i tiden. partial = överlappar men ryms inte. */
+function dependents(e) {
+  const c = cat(e.cat), end = x => x.end ?? Infinity, all = [], partial = [];
+  if (c && c.type === 'sub') E.forEach(x => { if (x.id !== e.id && x.startedBy === e.id) all.push(x); });
+  else if (c && c.type === 'work') E.forEach(x => {
+    const xc = cat(x.cat);
+    if (x.id === e.id || !xc || xc.type !== 'sub' || xc.parent !== c.id || !(x.start < end(e) && end(x) > e.start)) return;
+    (x.start >= e.start && end(x) <= end(e) ? all : partial).push(x);
+  });
+  return { all, partial };
+}
+function deleteEntries(e, extra) {
+  const gone = [e, ...extra];
+  E = E.filter(x => !gone.includes(x));
+  E.forEach(x => { if (gone.some(g => g.id === x.startedBy)) delete x.startedBy; });
+  commitEntries(...gone); closeModal(); render();
+}
+function entryLabel(x) {
+  const c = cat(x.cat) || { name: '(borttagen kategori)' };
+  const d = t => (dayStart(t) === logDay ? '' : dm(t) + ' ') + clock(t);
+  return c.name + ' ' + d(x.start) + '–' + (x.end == null ? 'pågår' : d(x.end));
+}
+function confirmDelete(e, dep) {
+  const isSub = (cat(e.cat) || {}).type === 'sub';
+  const list = a => '<ul style="margin:6px 0 0;padding-left:20px">' + a.map(x => '<li>' + esc(entryLabel(x)) + '</li>').join('') + '</ul>';
+  let h = '<h3>Ta bort</h3><p><b>' + esc(entryLabel(e)) + '</b></p>';
+  if (isSub) h += '<p class="help">Startade huvudkategorin, men den pågick längre än delposten:</p>' + list(dep.all);
+  else {
+    if (dep.all.length) h += '<p class="help">Delposter under den tas också bort (' + dep.all.length + '):</p>' + list(dep.all);
+    if (dep.partial.length) h += '<p class="help">Överlappar bara delvis och tas <b>inte</b> bort:</p>' + list(dep.partial);
+  }
+  h += '<div class="row" style="margin-top:16px;gap:8px;flex-wrap:wrap">' +
+    '<button class="btn sec" id="cNo">Avbryt</button>' +
+    (isSub ? '<button class="btn danger" id="cOne" style="margin-left:auto">Bara delposten</button><button class="btn danger" id="cAll">Även huvudposten</button>'
+           : '<button class="btn danger" id="cAll" style="margin-left:auto">Ta bort ' + (1 + dep.all.length) + ' poster</button>') + '</div>';
+  openModal(h, r => {
+    r.querySelector('#cNo').onclick = closeModal;
+    const one = r.querySelector('#cOne'); if (one) one.onclick = () => deleteEntries(e, []);
+    r.querySelector('#cAll').onclick = () => deleteEntries(e, dep.all);
+  });
+}
 function editEntry(id) {
   const isNew = !id;
   const e = isNew ? { id: newId(), cat: (S.categories.find(c => !c.archived) || {}).id, start: hm2ms(logDay, '08:00'), end: hm2ms(logDay, '09:00') } : E.find(x => x.id === id);
@@ -475,11 +517,17 @@ function editEntry(id) {
     r.querySelector('#mCancel').onclick = closeModal;
     const del = r.querySelector('#mDel');
     if (del) del.onclick = () => {
-      if (!del.dataset.sure) { del.dataset.sure = 1; del.textContent = 'Säker?'; return; }
-      // tar man bort en delkategoripost tas även huvudkategoriposten bort om den startades av just den
-      const gone = E.filter(x => x.id === e.id || x.startedBy === e.id);
-      E = E.filter(x => !gone.includes(x));
-      commitEntries(...gone); closeModal(); render();
+      const dep = dependents(e);
+      const simple = dep.all.length && !dep.partial.length && dep.all.every(x => x.start === e.start && x.end === e.end);
+      if (!dep.all.length) {
+        if (!del.dataset.sure) { del.dataset.sure = 1; del.textContent = 'Säker?'; return; }
+        return deleteEntries(e, []);
+      }
+      if (simple) {
+        if (!del.dataset.sure) { del.dataset.sure = 1; del.textContent = 'Säker?'; return; }
+        return deleteEntries(e, dep.all);
+      }
+      confirmDelete(e, dep);
     };
     r.querySelector('#mSave').onclick = () => {
       const st = fromInput(r.querySelector('#mStart').value), en = fromInput(r.querySelector('#mEnd').value);
