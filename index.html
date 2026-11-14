@@ -1,0 +1,977 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Flexlogg">
+<meta name="theme-color" content="#f4f5f7">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" href="icon-192.png">
+<title>Flexlogg</title>
+<style>
+:root{
+  --in:#2f6fde;--out:#cc6618;
+  --bg:#f4f5f7;--card:#fff;--ink:#16181d;--mute:#6b717c;--line:#e3e5ea;--accent:#2f6fde;
+  --ok:#2e9e6a;--warn:#c9761a;--bad:#c2413a;--chip:#eceef2;
+}
+@media (prefers-color-scheme:dark){
+  :root{--bg:#0f1114;--card:#1a1d22;--ink:#eef0f3;--mute:#9298a3;--line:#2a2e35;--chip:#262a31;--in:#5b8ff0;--out:#d8732c}
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.4 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif}
+body{padding:env(safe-area-inset-top) 0 calc(72px + env(safe-area-inset-bottom))}
+header{display:flex;align-items:center;justify-content:space-between;padding:14px 16px 6px}
+header h1{font-size:22px;margin:0;letter-spacing:-.02em}
+.sync{font-size:12px;color:var(--mute)}
+.sync.ok{color:var(--ok)} .sync.err{color:var(--bad)}
+main{padding:0 14px;max-width:640px;margin:0 auto}
+.card{background:var(--card);border-radius:16px;padding:14px;margin:10px 0;border:1px solid var(--line)}
+.row{display:flex;align-items:center;gap:8px}
+.between{justify-content:space-between}
+.mute{color:var(--mute)} .small{font-size:13px}
+.big{font-size:20px;font-weight:650;font-variant-numeric:tabular-nums}
+.today{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.today div span{display:block;font-size:12px;color:var(--mute)}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.chip{border:0;background:var(--chip);color:var(--ink);padding:7px 12px;border-radius:999px;font:inherit;font-size:14px}
+.chip.on{background:var(--ink);color:var(--card)}
+.stampshow{font-size:18px;font-weight:650;font-variant-numeric:tabular-nums}
+.stampshow.custom{color:var(--warn)}
+input,select,textarea{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+input[type=color]{padding:0;width:34px;height:34px;border-radius:50%;overflow:hidden;border:0;background:none}
+.group{margin:12px 0}
+.btn-main{width:100%;border:2px solid var(--c);background:var(--card);color:var(--ink);border-radius:18px;padding:16px;text-align:left;font:inherit;display:flex;justify-content:space-between;align-items:center;gap:10px}
+.btn-main b{font-size:19px}
+.btn-main.on{background:var(--c);color:#fff}
+.btn-main.on .mute{color:rgba(255,255,255,.85)}
+.subs{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;padding-left:12px;border-left:3px solid var(--c)}
+.btn-sub{border:1.5px solid var(--c);background:var(--card);color:var(--ink);border-radius:14px;padding:11px 12px;text-align:left;font:inherit;min-height:62px}
+.btn-sub b{display:block;font-size:15px}
+.btn-sub.on{background:var(--c);color:#fff}
+.btn-sub.on .mute{color:rgba(255,255,255,.85)}
+.run{font-variant-numeric:tabular-nums}
+.sectionlbl{font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:var(--mute);margin:18px 4px 4px}
+nav{position:fixed;left:0;right:0;bottom:0;background:var(--card);border-top:1px solid var(--line);display:flex;padding-bottom:env(safe-area-inset-bottom);z-index:5}
+nav button{flex:1;min-width:0;border:0;background:none;color:var(--mute);font:inherit;font-size:11px;padding:8px 0 10px;display:flex;flex-direction:column;align-items:center;gap:2px}
+nav button svg{width:24px;height:24px}
+nav button.on{color:var(--accent)}
+.navbar{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.navbar button{border:0;background:var(--chip);color:var(--ink);border-radius:10px;padding:8px 14px;font:inherit}
+.navbar .ttl{font-weight:650;text-align:center;flex:1}
+.entry{display:flex;align-items:center;gap:10px;padding:11px 2px;border-bottom:1px solid var(--line)}
+.entry:last-child{border-bottom:0}
+.dot{width:12px;height:12px;border-radius:50%;flex:none}
+.entry .t{margin-left:auto;text-align:right;font-variant-numeric:tabular-nums}
+.btn{border:0;background:var(--accent);color:#fff;border-radius:12px;padding:11px 16px;font:inherit;font-weight:600}
+.btn.sec{background:var(--chip);color:var(--ink)}
+.btn.danger{background:var(--bad)}
+.btn.block{width:100%}
+.day{padding:10px 0;border-bottom:1px solid var(--line)}
+.day:last-child{border-bottom:0}
+.prop{font-variant-numeric:tabular-nums;font-weight:650}
+.tag{font-size:12px;background:var(--chip);border-radius:6px;padding:2px 6px;color:var(--mute)}
+.tag.warn{color:var(--warn)}
+.copy{border:0;background:var(--chip);color:var(--ink);border-radius:8px;padding:5px 10px;font:inherit;font-size:13px}
+.catrow{display:grid;grid-template-columns:34px 1fr auto;gap:8px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)}
+.catrow:last-child{border-bottom:0}
+.catrow .sub2{grid-column:2/4;display:flex;gap:6px;flex-wrap:wrap}
+.catrow input[type=text]{width:100%}
+.icon{border:0;background:var(--chip);color:var(--ink);border-radius:8px;width:32px;height:32px;font-size:15px}
+.hours{display:grid;grid-template-columns:auto 1fr 1fr;gap:8px;align-items:center}
+.hours input[type=time]{width:100%}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:flex-end;justify-content:center;z-index:20}
+.sheet{background:var(--card);width:100%;max-width:640px;border-radius:20px 20px 0 0;padding:18px 16px calc(18px + env(safe-area-inset-bottom))}
+.sheet h3{margin:0 0 12px}
+.sheet label{display:block;font-size:13px;color:var(--mute);margin:10px 0 4px}
+.sheet input,.sheet select,.sheet textarea{width:100%}
+.toast{position:fixed;left:50%;bottom:calc(84px + env(safe-area-inset-bottom));transform:translateX(-50%);background:var(--ink);color:var(--card);padding:10px 16px;border-radius:12px;font-size:14px;z-index:30;max-width:90%;text-align:center}
+.empty{color:var(--mute);text-align:center;padding:20px 0}
+.help{font-size:13px;color:var(--mute);margin:6px 0 0}
+.seg{display:flex;background:var(--chip);border-radius:10px;padding:3px;gap:3px}
+.seg button{flex:1;border:0;background:none;color:var(--ink);font:inherit;font-size:14px;padding:7px 0;border-radius:8px}
+.seg button.on{background:var(--card);font-weight:600;box-shadow:0 1px 2px rgba(0,0,0,.12)}
+.chart{width:100%;height:auto;display:block;margin-top:6px;touch-action:manipulation}
+.chart text{font-size:9px;fill:var(--mute)}
+.chart .grid{stroke:var(--line);stroke-width:1}
+.chartinfo{min-height:38px;font-size:13px;margin-top:8px;font-variant-numeric:tabular-nums}
+.legend{display:flex;flex-wrap:wrap;gap:6px 12px;font-size:12px;color:var(--mute);margin-top:8px}
+.legend span{display:inline-flex;align-items:center;gap:5px}
+.legend i{width:10px;height:10px;border-radius:3px;display:inline-block}
+.srow{padding:8px 0;border-bottom:1px solid var(--line)}
+.srow:last-child{border-bottom:0}
+.srow .bar{height:6px;border-radius:3px;background:var(--chip);margin-top:5px;overflow:hidden}
+.srow .bar i{display:block;height:100%;border-radius:3px}
+.num{font-variant-numeric:tabular-nums;white-space:nowrap}
+.sched{margin:10px 0}
+.sched .hdr{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px}
+</style>
+</head>
+<body>
+<header>
+  <h1 id="htitle">Stämpla</h1>
+  <span class="sync" id="sync"></span>
+</header>
+<main id="view"></main>
+<nav id="nav">
+  <button data-tab="stampla"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5M9 2h6"/></svg>Stämpla</button>
+  <button data-tab="logg"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>Logg</button>
+  <button data-tab="flex"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4M7 14h4M7 17h7"/></svg>Flex</button>
+  <button data-tab="stat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>Statistik</button>
+  <button data-tab="inst"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>Inställningar</button>
+</nav>
+<div id="modalRoot"></div>
+
+<script>
+"use strict";
+/* ---------- helpers ---------- */
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const newId = () => Math.random().toString(36).slice(2, 9) + Date.now().toString(36).slice(-5);
+const clone = o => JSON.parse(JSON.stringify(o));
+const MIN = 60000;
+const WD = ['Mån','Tis','Ons','Tor','Fre','Lör','Sön'];
+const WDL = ['Måndag','Tisdag','Onsdag','Torsdag','Fredag','Lördag','Söndag'];
+const PALETTE = ['#2f6fde','#e0782f','#2e9e6a','#8a5cd1','#d14b7a','#1f9bb0','#b59a1a','#7a7f87'];
+const pad = n => String(n).padStart(2, '0');
+const dayStart = ms => { const d = new Date(ms); d.setHours(0,0,0,0); return d.getTime(); };
+const addDays = (ms, n) => { const d = new Date(ms); d.setDate(d.getDate() + n); return d.getTime(); };
+const wdIdx = ms => (new Date(ms).getDay() + 6) % 7;
+const weekMonday = ms => { const d = dayStart(ms); return addDays(d, -wdIdx(d)); };
+const hm2ms = (day, hm) => { const [h, m] = (hm || '00:00').split(':').map(Number); const d = new Date(day); d.setHours(h, m, 0, 0); return d.getTime(); };
+const clock = ms => { const d = new Date(ms); return pad(d.getHours()) + ':' + pad(d.getMinutes()); };
+const dm = ms => { const d = new Date(ms); return d.getDate() + '/' + (d.getMonth() + 1); };
+const dk = ms => { const d = new Date(ms); return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); };
+const dkToMs = k => { const [y, m, d] = k.split('-').map(Number); return new Date(y, m - 1, d).getTime(); };
+const mk = ms => { const d = new Date(ms); return 'm-' + d.getFullYear() + '-' + pad(d.getMonth() + 1); };
+const toInput = ms => { const d = new Date(ms); return d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes()); };
+const fromInput = s => { if (!s) return null; const t = new Date(s).getTime(); return isNaN(t) ? null : t; };
+function fmtDur(ms) { const m = Math.round(ms / MIN); const h = Math.floor(m / 60), r = m % 60; return h ? (h + ' h ' + pad(r) + ' min') : (r + ' min'); }
+function fmtRun(ms) { const s = Math.max(0, Math.floor(ms / 1000)); return Math.floor(s / 3600) + ':' + pad(Math.floor(s / 60) % 60) + ':' + pad(s % 60); }
+function isoWeek(ms) { const d = new Date(ms); d.setHours(0,0,0,0); d.setDate(d.getDate() + 3 - ((d.getDay() + 6) % 7)); const w1 = new Date(d.getFullYear(), 0, 4); return 1 + Math.round(((d - w1) / 864e5 - 3 + ((w1.getDay() + 6) % 7)) / 7); }
+function longDate(ms) { return new Date(ms).toLocaleDateString('sv-SE', { weekday: 'long', day: 'numeric', month: 'long' }); }
+
+/* ---------- state ---------- */
+const DEFAULT_SETTINGS = {
+  categories: [
+    { id: 'arbete', name: 'Arbete', type: 'work', color: '#2f6fde' },
+    { id: 'elev', name: 'Elevtid', type: 'sub', parent: 'arbete', color: '#e0782f' },
+    { id: 'plan', name: 'Planering', type: 'sub', parent: 'arbete', color: '#2e9e6a' },
+    { id: 'ratt', name: 'Rättning', type: 'sub', parent: 'arbete', color: '#8a5cd1' },
+    { id: 'ejarb', name: 'Ej arbetstid', type: 'other', color: '#7a7f87' }
+  ],
+  hours: [0,1,2,3,4,5,6].map(i => ({ on: i < 5, start: '07:30', end: '16:30' })),  // bara mall/migrering
+  lunch: 0,
+  offDays: 'separate'
+};
+let S = normalizeSettings({});
+let E = [];
+let T = {};          // överfört till flexappen: dag -> {at, in, out, dur}
+let tab = 'stampla';
+let SM = { kind: 'now' };          // stamp-time mode
+let logDay = dayStart(Date.now());
+let flexWeek = weekMonday(Date.now());
+let needsRender = false;
+
+function normalizeSettings(s) {
+  const o = Object.assign(clone(DEFAULT_SETTINGS), s || {});
+  if (!Array.isArray(o.categories)) o.categories = clone(DEFAULT_SETTINGS.categories);
+  if (!Array.isArray(o.hours) || o.hours.length !== 7) o.hours = clone(DEFAULT_SETTINGS.hours);
+  // normal arbetstid lagras som scheman med giltighetsdatum ('' = från början)
+  if (!Array.isArray(o.schedules) || !o.schedules.length) o.schedules = [{ from: '', hours: o.hours }];
+  o.schedules = o.schedules.filter(x => x && Array.isArray(x.hours) && x.hours.length === 7);
+  if (!o.schedules.length) o.schedules = [{ from: '', hours: clone(DEFAULT_SETTINGS.hours) }];
+  o.schedules.sort((a, b) => (a.from || '').localeCompare(b.from || ''));
+  o.schedules[0].from = '';
+  delete o.hours;
+  o.lunch = Math.max(0, Number(o.lunch) || 0);
+  return o;
+}
+function schedIdxFor(day) { const k = dk(day); let j = 0; S.schedules.forEach((sc, i) => { if ((sc.from || '') <= k) j = i; }); return j; }
+const hoursFor = day => S.schedules[schedIdxFor(day)].hours[wdIdx(day)];
+const cat = id => S.categories.find(c => c.id === id);
+const isWork = c => !!c && (c.type === 'work' || c.type === 'sub');
+const activeOf = id => E.find(e => e.cat === id && e.end == null);
+const parentOf = c => (c && c.type === 'sub' && c.parent && cat(c.parent) && cat(c.parent).type === 'work') ? cat(c.parent) : null;
+
+/* ---------- local storage ---------- */
+const LSK = 'flexlogg-v1';
+let dirty = new Set(), ver = {}, writing = {}, knownKeys = new Set();
+function saveLocal() {
+  try { localStorage.setItem(LSK, JSON.stringify({ S, E, T, tab })); storageOK = true; } catch (e) { storageOK = false; }
+}
+function loadLocal() {
+  try {
+    const raw = localStorage.getItem(LSK); if (!raw) return;
+    const o = JSON.parse(raw);
+    if (o.S) S = normalizeSettings(o.S);
+    if (Array.isArray(o.E)) E = o.E;
+    if (o.T && typeof o.T === 'object') T = o.T;
+    if (Array.isArray(o.dirty)) o.dirty.forEach(k => markDirty(k));
+    if (o.tab) tab = o.tab;
+  } catch (e) {}
+}
+
+/* ---------- lagring: endast i den här telefonen ---------- */
+let storageOK = true;
+const LBK = 'flexlogg-lastbackup';
+function lastBackup() { try { return Number(localStorage.getItem(LBK)) || 0; } catch (e) { return 0; } }
+function setSync() {
+  const el = $('#sync');
+  if (!storageOK) { el.textContent = 'Kan inte spara!'; el.className = 'sync err'; return; }
+  const lb = lastBackup();
+  const old = E.length && (!lb || Date.now() - lb > 14 * 864e5);
+  el.textContent = old ? 'Dags för säkerhetskopia' : 'Sparas i telefonen';
+  el.className = 'sync ' + (old ? 'err' : 'ok');
+}
+function markDirty() {}
+function markAllDirty() {}
+function commit() { saveLocal(); setSync(); }
+const commitEntries = (...entries) => commit([...new Set(entries.filter(x => x != null).map(x => typeof x === 'number' ? mk(x) : mk(x.start)))]);
+const commitSettings = () => commit(['settings']);
+
+/* ---------- calculations ---------- */
+function merge(iv) {
+  iv = iv.filter(([s, e]) => e > s).sort((a, b) => a[0] - b[0]);
+  const out = [];
+  for (const [s, e] of iv) {
+    if (out.length && s <= out[out.length - 1][1]) out[out.length - 1][1] = Math.max(out[out.length - 1][1], e);
+    else out.push([s, e]);
+  }
+  return out;
+}
+const sumIv = iv => iv.reduce((a, [s, e]) => a + (e - s), 0);
+const clip = (iv, a, b) => iv.map(([s, e]) => [Math.max(s, a), Math.min(e, b)]).filter(([s, e]) => e > s);
+
+function daySummary(day) {
+  const d0 = day, d1 = addDays(day, 1), now = Date.now();
+  const rel = E.filter(e => e.start < d1 && (e.end ?? now) > d0);
+  const work = merge(clip(rel.filter(e => isWork(cat(e.cat))).map(e => [e.start, e.end ?? now]), d0, d1));
+  const total = sumIv(work);
+  const h = hoursFor(day);
+  let win = null, inside = 0;
+  if (h && h.on && h.start < h.end) { win = [hm2ms(day, h.start), hm2ms(day, h.end)]; inside = sumIv(clip(work, win[0], win[1])); }
+  const byCat = {};
+  S.categories.forEach(c => {
+    const t = sumIv(merge(clip(rel.filter(e => e.cat === c.id).map(e => [e.start, e.end ?? now]), d0, d1)));
+    if (t > 0) byCat[c.id] = t;
+  });
+  return { day, total, inside, outside: total - inside, win, first: work.length ? work[0][0] : null, byCat, entries: rel };
+}
+function proposal(sum, extra) {
+  const durMin = Math.round((sum.total + (extra || 0)) / MIN);
+  if (!sum.win || durMin <= 0) return null;
+  const [ws, we] = sum.win;
+  const dur = durMin * MIN, lunch = S.lunch * MIN;
+  let inT = (sum.first != null && sum.first >= ws && sum.first < we) ? Math.floor(sum.first / MIN) * MIN : ws;
+  let outT = inT + dur + lunch;
+  if (outT > we) { inT = Math.max(ws, we - dur - lunch); outT = inT + dur + lunch; }
+  return { in: inT, out: outT, dur, over: Math.max(0, outT - we) };
+}
+function weekData(mon) {
+  const days = [0,1,2,3,4,5,6].map(i => daySummary(addDays(mon, i)));
+  const extra = Array(7).fill(0); let separate = 0;
+  days.forEach((s, i) => {
+    if (s.win || s.total <= 0) return;
+    if (S.offDays === 'separate') { separate += s.total; return; }
+    const before = [], after = [];
+    for (let k = i - 1; k >= 0; k--) before.push(k);
+    for (let k = i + 1; k < 7; k++) after.push(k);
+    const order = S.offDays === 'prev' ? before.concat(after) : after.concat(before);
+    const j = order.find(k => days[k].win);
+    if (j == null) separate += s.total; else extra[j] += s.total;
+  });
+  const props = days.map((s, i) => proposal(s, extra[i]));
+  const total = days.reduce((a, s) => a + s.total, 0);
+  const outside = days.reduce((a, s) => a + s.outside, 0);
+  return { days, extra, separate, props, total, outside };
+}
+
+/* ---------- stamping ---------- */
+function stampTime() {
+  const n = Date.now();
+  if (SM.kind === 'offset') return n - SM.min * MIN;
+  if (SM.kind === 'abs') return SM.ms;
+  return n;
+}
+function stopEntry(e, t) { e.end = Math.max(t, e.start); }
+function press(catId) {
+  const c = cat(catId); if (!c) return;
+  const t = stampTime();
+  if (t > Date.now() + MIN) { toast('Stämpeltiden ligger i framtiden.'); return; }
+  const act = activeOf(catId);
+  const touched = [];
+  if (act) {
+    if (t < act.start) { toast('Sluttiden är före starttiden (' + clock(act.start) + ').'); return; }
+    stopEntry(act, t); touched.push(act);
+    if (c.type === 'sub') {
+      const p = parentOf(c), pa = p && activeOf(p.id);
+      const otherSubs = E.some(e => e.end == null && cat(e.cat) && cat(e.cat).parent === c.parent);
+      if (pa && pa.startedBy === act.id && !otherSubs) { stopEntry(pa, t); touched.push(pa); }
+    } else if (c.type === 'work') {
+      E.filter(e => e.end == null && cat(e.cat) && cat(e.cat).type === 'sub' && cat(e.cat).parent === catId)
+        .forEach(e => { stopEntry(e, t); touched.push(e); });
+    }
+    toast(c.name + ' stoppad ' + clock(t));
+  } else {
+    const ne = { id: newId(), cat: catId, start: t, end: null };
+    if (c.type === 'sub') {
+      const p = parentOf(c);
+      // byter man delkategori stoppas den som pågår under samma huvudkategori
+      E.filter(e => e.end == null && cat(e.cat) && cat(e.cat).type === 'sub' && cat(e.cat).parent === c.parent).forEach(e => {
+        stopEntry(e, t); touched.push(e);
+        const pa = p && activeOf(p.id);
+        if (pa && pa.startedBy === e.id) { pa.startedBy = ne.id; touched.push(pa); }
+      });
+      if (p && !activeOf(p.id)) { const pe = { id: newId(), cat: p.id, start: t, end: null, startedBy: ne.id }; E.push(pe); touched.push(pe); }
+    }
+    E.push(ne); touched.push(ne);
+    toast(c.name + ' startad ' + clock(t));
+  }
+  SM = { kind: 'now' };
+  commitEntries(...touched);
+  render();
+}
+
+/* ---------- UI: shared ---------- */
+let toastT;
+function toast(msg) {
+  let el = $('.toast'); if (!el) { el = document.createElement('div'); el.className = 'toast'; document.body.appendChild(el); }
+  el.textContent = msg; el.style.display = 'block';
+  clearTimeout(toastT); toastT = setTimeout(() => { el.style.display = 'none'; }, 2600);
+}
+function openModal(html, bind) {
+  const root = $('#modalRoot');
+  root.innerHTML = '<div class="modal"><div class="sheet">' + html + '</div></div>';
+  root.querySelector('.modal').addEventListener('click', ev => { if (ev.target.classList.contains('modal')) closeModal(); });
+  bind && bind(root);
+}
+function closeModal() { $('#modalRoot').innerHTML = ''; if (needsRender) render(); }
+async function copyText(txt) {
+  try { await navigator.clipboard.writeText(txt); toast('Kopierat'); }
+  catch (e) {
+    openModal('<h3>Kopiera</h3><textarea rows="10" readonly>' + esc(txt) + '</textarea><p class="help">Markera texten och kopiera.</p><button class="btn block" data-close>Stäng</button>', r => {
+      const ta = r.querySelector('textarea'); ta.focus(); ta.select();
+      r.querySelector('[data-close]').onclick = closeModal;
+    });
+  }
+}
+function safeRender() {
+  const ae = document.activeElement;
+  const typing = ae && /INPUT|SELECT|TEXTAREA/.test(ae.tagName);
+  if ($('#modalRoot').innerHTML || (typing && tab !== 'stampla')) { needsRender = true; return; }
+  render();
+}
+document.addEventListener('focusout', () => setTimeout(() => { if (needsRender && !$('#modalRoot').innerHTML) { const ae = document.activeElement; if (!ae || !/INPUT|SELECT|TEXTAREA/.test(ae.tagName)) render(); } }, 50));
+
+function render() {
+  needsRender = false;
+  document.querySelectorAll('#nav button').forEach(b => b.classList.toggle('on', b.dataset.tab === tab));
+  $('#htitle').textContent = { stampla: 'Stämpla', logg: 'Logg', flex: 'Flex', stat: 'Statistik', inst: 'Inställningar' }[tab];
+  const v = $('#view');
+  if (tab === 'stampla') v.innerHTML = viewStamp();
+  else if (tab === 'logg') v.innerHTML = viewLog();
+  else if (tab === 'flex') v.innerHTML = viewFlex();
+  else if (tab === 'stat') v.innerHTML = viewStat();
+  else v.innerHTML = viewSettings();
+}
+
+/* ---------- view: stämpla ---------- */
+function stampLabel() {
+  const t = stampTime();
+  const sameDay = dayStart(t) === dayStart(Date.now());
+  return (sameDay ? '' : dm(t) + ' ') + clock(t);
+}
+function viewStamp() {
+  const today = daySummary(dayStart(Date.now()));
+  const live = S.categories.filter(c => !c.archived);
+  const works = live.filter(c => c.type === 'work');
+  const orphanSubs = live.filter(c => c.type === 'sub' && !parentOf(c));
+  const others = live.filter(c => c.type === 'other');
+  const sub = c => {
+    const a = activeOf(c.id);
+    const info = a ? '<span class="mute small run" data-run="' + a.start + '">' + fmtRun(Date.now() - a.start) + '</span>' : '<span class="mute small">' + ((today.byCat[c.id] || 0) >= 30000 ? fmtDur(today.byCat[c.id]) : '—') + '</span>';
+    return '<button class="btn-sub' + (a ? ' on' : '') + '" style="--c:' + esc(c.color) + '" data-press="' + esc(c.id) + '"><b>' + esc(c.name) + '</b>' + info + '</button>';
+  };
+  const main = c => {
+    const a = activeOf(c.id);
+    const right = a
+      ? '<span style="text-align:right"><span class="run big" data-run="' + a.start + '">' + fmtRun(Date.now() - a.start) + '</span><br><span class="mute small">sedan ' + clock(a.start) + '</span></span>'
+      : '<span class="mute small">' + ((today.byCat[c.id] || 0) >= 30000 ? 'Idag ' + fmtDur(today.byCat[c.id]) : 'Tryck för att starta') + '</span>';
+    return '<button class="btn-main' + (a ? ' on' : '') + '" style="--c:' + esc(c.color) + '" data-press="' + esc(c.id) + '"><b>' + esc(c.name) + '</b>' + right + '</button>';
+  };
+  let h = '<div class="card today"><div><span>Arbetstid idag</span><b class="big" id="tTotal">' + fmtDur(today.total) + '</b></div><div><span>varav utanför normaltid</span><b class="big" id="tOut">' + fmtDur(today.outside) + '</b></div></div>';
+  const chip = (k, lbl, on) => '<button class="chip' + (on ? ' on' : '') + '" data-chip="' + k + '">' + lbl + '</button>';
+  h += '<div class="card"><div class="row between"><span class="mute small">Stämpla som</span><span class="stampshow' + (SM.kind !== 'now' ? ' custom' : '') + '" id="stampShow">' + stampLabel() + '</span></div><div class="chips">' +
+    chip('now', 'Nu', SM.kind === 'now') + chip('5', '−5 min', SM.kind === 'offset' && SM.min === 5) + chip('15', '−15 min', SM.kind === 'offset' && SM.min === 15) + chip('30', '−30 min', SM.kind === 'offset' && SM.min === 30) + chip('abs', 'Annan tid…', SM.kind === 'abs') +
+    '</div>' + (SM.kind === 'abs' ? '<input type="datetime-local" id="absInput" style="width:100%;margin-top:8px" value="' + toInput(SM.ms) + '">' : '') + '</div>';
+  works.forEach(c => {
+    const subs = live.filter(s => s.type === 'sub' && s.parent === c.id);
+    h += '<div class="group">' + main(c) + (subs.length ? '<div class="subs" style="--c:' + esc(c.color) + '">' + subs.map(sub).join('') + '</div>' : '') + '</div>';
+  });
+  if (orphanSubs.length) h += '<div class="sectionlbl">Övrig arbetstid</div><div class="subs" style="--c:var(--line);border:0;padding:0">' + orphanSubs.map(sub).join('') + '</div>';
+  if (others.length) h += '<div class="sectionlbl">Ej arbetstid</div><div class="subs" style="border:0;padding:0">' + others.map(sub).join('') + '</div>';
+  if (!live.length) h += '<div class="card empty">Inga kategorier. Lägg till under Inställningar.</div>';
+  return h;
+}
+
+/* ---------- view: logg ---------- */
+function viewLog() {
+  const s = daySummary(logDay), now = Date.now();
+  const list = s.entries.slice().sort((a, b) => a.start - b.start);
+  let h = '<div class="card navbar"><button data-logday="-1">‹</button><div class="ttl">' + esc(longDate(logDay)) + '</div><button data-logday="1">›</button></div>';
+  if (logDay !== dayStart(now)) h += '<div class="row" style="justify-content:center"><button class="chip" data-logday="0">Till idag</button></div>';
+  h += '<div class="card"><div class="row between"><span class="mute">Arbetstid' + (T[dk(logDay)] ? ' <span class="tag" style="color:var(--ok)">✓ överförd</span>' : '') + '</span><b>' + fmtDur(s.total) + '</b></div><div class="row between small"><span class="mute">varav utanför normaltid</span><span>' + fmtDur(s.outside) + '</span></div></div>';
+  h += '<div class="card">';
+  if (!list.length) h += '<div class="empty">Inga stämplingar den här dagen.</div>';
+  list.forEach(e => {
+    const c = cat(e.cat) || { name: '(borttagen kategori)', color: '#999' };
+    const ind = c.type === 'sub' ? '&nbsp;&nbsp;↳ ' : '';
+    const startTxt = dayStart(e.start) === logDay ? clock(e.start) : dm(e.start) + ' ' + clock(e.start);
+    const endTxt = e.end == null ? 'pågår' : (dayStart(e.end) === logDay ? clock(e.end) : dm(e.end) + ' ' + clock(e.end));
+    h += '<div class="entry" data-edit="' + esc(e.id) + '"><span class="dot" style="background:' + esc(c.color) + '"></span><span>' + ind + esc(c.name) + '</span><span class="t">' + startTxt + '–' + endTxt + '<br><span class="mute small">' + fmtDur((e.end ?? now) - e.start) + '</span></span></div>';
+  });
+  h += '</div><button class="btn block" data-add>+ Lägg till stämpling</button>';
+  return h;
+}
+function editEntry(id) {
+  const isNew = !id;
+  const e = isNew ? { id: newId(), cat: (S.categories.find(c => !c.archived) || {}).id, start: hm2ms(logDay, '08:00'), end: hm2ms(logDay, '09:00') } : E.find(x => x.id === id);
+  if (!e) return;
+  const opts = S.categories.filter(c => !c.archived || c.id === e.cat).map(c => '<option value="' + esc(c.id) + '"' + (c.id === e.cat ? ' selected' : '') + '>' + esc(c.name) + '</option>').join('');
+  openModal('<h3>' + (isNew ? 'Ny stämpling' : 'Ändra stämpling') + '</h3>' +
+    '<label>Kategori</label><select id="mCat">' + opts + '</select>' +
+    '<label>Start</label><input type="datetime-local" id="mStart" value="' + toInput(e.start) + '">' +
+    '<label>Slut <span class="small">(tomt = pågår)</span></label><input type="datetime-local" id="mEnd" value="' + (e.end == null ? '' : toInput(e.end)) + '">' +
+    '<div class="row" style="margin-top:16px;gap:8px">' + (isNew ? '' : '<button class="btn danger" id="mDel">Ta bort</button>') + '<button class="btn sec" id="mCancel" style="margin-left:auto">Avbryt</button><button class="btn" id="mSave">Spara</button></div>', r => {
+    r.querySelector('#mCancel').onclick = closeModal;
+    const del = r.querySelector('#mDel');
+    if (del) del.onclick = () => {
+      if (!del.dataset.sure) { del.dataset.sure = 1; del.textContent = 'Säker?'; return; }
+      E = E.filter(x => x.id !== e.id);
+      E.forEach(x => { if (x.startedBy === e.id) delete x.startedBy; });
+      commitEntries(e); closeModal(); render();
+    };
+    r.querySelector('#mSave').onclick = () => {
+      const st = fromInput(r.querySelector('#mStart').value), en = fromInput(r.querySelector('#mEnd').value);
+      if (st == null) { toast('Ange starttid.'); return; }
+      if (en != null && en <= st) { toast('Sluttiden måste vara efter starttiden.'); return; }
+      if (en == null && E.some(x => x.id !== e.id && x.cat === r.querySelector('#mCat').value && x.end == null)) { toast('Kategorin har redan en pågående mätning.'); return; }
+      const oldStart = isNew ? null : e.start;
+      e.cat = r.querySelector('#mCat').value; e.start = st; e.end = en;
+      if (isNew) E.push(e);
+      commitEntries(e, oldStart); closeModal(); render();
+    };
+  });
+}
+
+/* ---------- view: flex ---------- */
+/* ---------- överfört till flexappen ---------- */
+function weekItems(w, mon) {
+  const items = [];
+  w.days.forEach((s, i) => {
+    const p = w.props[i], key = dk(s.day);
+    if (p) items.push({ key, i, label: WD[i] + ' ' + dm(s.day), cur: { in: p.in, out: p.out, dur: p.dur } });
+    else if (T[key]) items.push({ key, i, label: WD[i] + ' ' + dm(s.day), cur: null });
+  });
+  const sk = 'sep-' + dk(mon);
+  if (w.separate > 0) items.push({ key: sk, i: -1, label: 'Valfri dag', cur: { dur: Math.round(w.separate / MIN) * MIN } });
+  else if (T[sk]) items.push({ key: sk, i: -1, label: 'Valfri dag', cur: null });
+  items.forEach(it => {
+    const t = T[it.key];
+    it.state = !t ? 'open' : (it.cur && t.in === it.cur.in && t.out === it.cur.out && t.dur === it.cur.dur ? 'done' : 'changed');
+  });
+  return items;
+}
+function markItem(it) { T[it.key] = Object.assign({ at: Date.now() }, it.cur || {}); }
+function pendingOverview() {
+  if (!E.length) return null;
+  const today = dayStart(Date.now()), thisMon = weekMonday(today);
+  let mon = weekMonday(Math.min(...E.map(e => e.start))), count = 0, first = null;
+  for (let n = 0; mon <= thisMon && n < 520; mon = addDays(mon, 7), n++) {
+    weekItems(weekData(mon), mon).forEach(it => {
+      if (it.state === 'done') return;
+      const past = it.i >= 0 ? addDays(mon, it.i) < today : mon < thisMon;
+      if (!past) return;
+      count++; if (first == null) first = mon;
+    });
+  }
+  return count ? { count, first } : null;
+}
+function itemLine(it) {
+  if (!it.cur) return it.label + ': ingen tid längre';
+  if (it.i < 0) return 'Att lägga på valfri dag: ' + fmtDur(it.cur.dur);
+  return it.label + ': In ' + clock(it.cur.in) + '  Ut ' + clock(it.cur.out) + '  (' + fmtDur(it.cur.dur) + ')';
+}
+function weekText(w, mon) {
+  const items = weekItems(w, mon).filter(it => it.cur);
+  const pend = items.filter(it => it.state !== 'done');
+  const use = pend.length ? pend : items;
+  const lines = ['Vecka ' + isoWeek(mon) + ' (' + dm(mon) + '–' + dm(addDays(mon, 6)) + ')'];
+  use.forEach(it => lines.push(itemLine(it) + (it.state === 'changed' ? '  [ändrad]' : '')));
+  if (!pend.length) lines.push('Total arbetstid: ' + fmtDur(w.total));
+  return lines.join('\n');
+}
+function trBadge(it) {
+  const t = T[it.key];
+  if (it.state === 'open') return '<button class="copy" data-mark="' + it.key + '">Markera överförd</button>';
+  let h = '<span class="tag" style="color:' + (it.state === 'done' ? 'var(--ok)' : 'var(--bad)') + '">' + (it.state === 'done' ? '✓ Överförd ' + dm(t.at) : '⚠ Ändrad efter överföring') + '</span>';
+  if (it.state === 'changed') {
+    h += '<div class="small" style="color:var(--bad);margin-top:4px">Överfört då: ' + (t.in != null ? 'In ' + clock(t.in) + ' Ut ' + clock(t.out) + ' (' + fmtDur(t.dur) + ')' : fmtDur(t.dur || 0)) + '</div>';
+    h += '<div class="row" style="gap:6px;margin-top:4px">' + (it.cur ? '<button class="copy" data-mark="' + it.key + '">Markera ny tid som överförd</button>' : '') + '<button class="copy" data-unmark="' + it.key + '">Ta bort markering</button></div>';
+  } else h += ' <button class="copy" data-unmark="' + it.key + '">Ångra</button>';
+  return '<div style="margin-top:6px">' + h + '</div>';
+}
+function viewFlex() {
+  const w = weekData(flexWeek);
+  const items = weekItems(w, flexWeek), byKey = {};
+  items.forEach(it => { byKey[it.key] = it; });
+  const pend = items.filter(it => it.state !== 'done' && it.cur);
+  const ov = pendingOverview();
+  let h = '';
+  if (ov) h += '<div class="card row between" style="border-color:var(--warn)"><span class="small"><b>' + ov.count + ' ' + (ov.count === 1 ? 'post' : 'poster') + ' ej överförda</b><br><span class="mute">äldsta: vecka ' + isoWeek(ov.first) + '</span></span>' + (ov.first !== flexWeek ? '<button class="copy" data-gotoweek="' + ov.first + '">Visa</button>' : '') + '</div>';
+  h += '<div class="card navbar"><button data-week="-1">‹</button><div class="ttl">Vecka ' + isoWeek(flexWeek) + '<div class="small mute">' + dm(flexWeek) + '–' + dm(addDays(flexWeek, 6)) + '</div></div><button data-week="1">›</button></div>';
+  if (flexWeek !== weekMonday(Date.now())) h += '<div class="row" style="justify-content:center"><button class="chip" data-week="0">Denna vecka</button></div>';
+  h += '<div class="card today"><div><span>Total arbetstid</span><b class="big">' + fmtDur(w.total) + '</b></div><div><span>varav utanför normaltid</span><b class="big">' + fmtDur(w.outside) + '</b></div></div>';
+  h += '<div class="card"><div class="row between"><b>Förslag till flexappen</b><button class="copy" data-copyweek>' + (pend.length && pend.length < items.filter(x => x.cur).length ? 'Kopiera ej överförda' : 'Kopiera veckan') + '</button></div><p class="help">Dagens totala arbetstid, inklusive kvälls- och helgtid, flyttad så att den ligger inom normal arbetstid' + (S.lunch ? ' (+' + S.lunch + ' min rast)' : '') + '. Markera det du lagt in i flexappen som överfört.</p>';
+  if (pend.length > 1) h += '<button class="btn sec block" data-markall style="margin-bottom:6px">Markera hela veckan som överförd</button>';
+  let any = false;
+  w.days.forEach((s, i) => {
+    const p = w.props[i], it = byKey[dk(s.day)];
+    if (!s.total && !p && !it) return;
+    any = true;
+    const parts = Object.entries(s.byCat).filter(([id]) => cat(id) && cat(id).type !== 'work').map(([id, t]) => '<span class="tag">' + esc(cat(id).name) + ' ' + fmtDur(t) + '</span>').join(' ');
+    const done = it && it.state === 'done';
+    h += '<div class="day"' + (done ? ' style="opacity:.6"' : '') + '><div class="row between"><b>' + WDL[i] + ' ' + dm(s.day) + '</b>' + (p ? '<button class="copy" data-copyday="' + i + '">Kopiera</button>' : '') + '</div>';
+    if (p) h += '<div class="prop">In ' + clock(p.in) + ' &nbsp;→&nbsp; Ut ' + clock(p.out) + ' <span class="mute small">(' + fmtDur(p.dur) + ')</span></div>';
+    else if (s.total) h += '<div class="small" style="color:var(--warn)">Ingen normal arbetstid denna dag' + (S.offDays === 'separate' ? ' – se nedan' : ' – flyttad till annan dag') + '</div>';
+    h += '<div class="small mute">Loggat ' + fmtDur(s.total) + (s.outside ? ', varav ' + fmtDur(s.outside) + ' utanför normaltid' : '') + (w.extra[i] ? ' · +' + fmtDur(w.extra[i]) + ' från fridag' : '') + '</div>';
+    if (p && p.over) h += '<div class="small" style="color:var(--bad)">Ryms inte inom normaltid: ' + fmtDur(p.over) + ' går över</div>';
+    if (parts) h += '<div style="margin-top:4px;display:flex;gap:4px;flex-wrap:wrap">' + parts + '</div>';
+    if (it) h += trBadge(it);
+    h += '</div>';
+  });
+  if (!any) h += '<div class="empty">Ingen arbetstid loggad den här veckan.</div>';
+  const sit = byKey['sep-' + dk(flexWeek)];
+  if (sit) h += '<div class="day"' + (sit.state === 'done' ? ' style="opacity:.6"' : '') + '><b>Att lägga på valfri dag</b>' + (sit.cur ? '<div class="prop">' + fmtDur(sit.cur.dur) + '</div><div class="small mute">Helg/fridagstid. Ändra hantering under Inställningar.</div>' : '') + trBadge(sit) + '</div>';
+  h += '</div>';
+  // breakdown per category for the week
+  const tot = {};
+  w.days.forEach(s => Object.entries(s.byCat).forEach(([id, t]) => { tot[id] = (tot[id] || 0) + t; }));
+  const rows = S.categories.filter(c => tot[c.id]).map(c => '<div class="row between" style="padding:4px 0"><span class="row"><span class="dot" style="background:' + esc(c.color) + '"></span>' + (c.type === 'sub' ? '↳ ' : '') + esc(c.name) + (c.type === 'other' ? ' <span class="tag">ej arbetstid</span>' : '') + '</span><span>' + fmtDur(tot[c.id]) + '</span></div>').join('');
+  if (rows) h += '<div class="card"><b>Per kategori</b><div style="margin-top:6px">' + rows + '</div></div>';
+  return h;
+}
+
+/* ---------- view: statistik ---------- */
+let statKind = 'month', statAnchor = Date.now(), chartMode = 'inout', statSel = null;
+const MONTHS = ['januari','februari','mars','april','maj','juni','juli','augusti','september','oktober','november','december'];
+function periodRange(kind, a) {
+  const d = new Date(a), y = d.getFullYear(), m = d.getMonth();
+  if (kind === 'week') { const s = weekMonday(a); return [s, addDays(s, 7)]; }
+  if (kind === 'month') return [new Date(y, m, 1).getTime(), new Date(y, m + 1, 1).getTime()];
+  if (kind === 'half') return m < 6 ? [new Date(y, 0, 1).getTime(), new Date(y, 6, 1).getTime()] : [new Date(y, 6, 1).getTime(), new Date(y + 1, 0, 1).getTime()];
+  return [new Date(y, 0, 1).getTime(), new Date(y + 1, 0, 1).getTime()];
+}
+function shiftPeriod(kind, start, n) {
+  if (kind === 'week') return addDays(start, 7 * n);
+  const d = new Date(start); d.setMonth(d.getMonth() + n * (kind === 'month' ? 1 : kind === 'half' ? 6 : 12)); return d.getTime();
+}
+function periodLabel(kind, s) {
+  const d = new Date(s), y = d.getFullYear();
+  if (kind === 'week') return 'Vecka ' + isoWeek(s) + ', ' + new Date(addDays(s, 3)).getFullYear();
+  if (kind === 'month') return MONTHS[d.getMonth()] + ' ' + y;
+  if (kind === 'half') return (d.getMonth() < 6 ? 'Januari–juni ' : 'Juli–december ') + y;
+  return String(y);
+}
+function statGroups() {
+  // huvudkategorier med sina delkategorier; delkategorier utan giltig huvudkategori blir egna grupper
+  const groups = [];
+  S.categories.filter(c => c.type === 'work').forEach(c => groups.push({ main: c, subs: S.categories.filter(x => x.type === 'sub' && x.parent === c.id) }));
+  S.categories.filter(c => c.type === 'sub' && !parentOf(c)).forEach(c => groups.push({ main: c, subs: [] }));
+  return groups;
+}
+function computeStats(p0, p1) {
+  const now = Date.now(), groups = statGroups();
+  const pre = E.filter(e => e.start < p1 && (e.end ?? now) > p0);
+  const z = () => ({ tot: 0, out: 0 });
+  const R = { work: z(), groups: groups.map(g => ({ g, all: z(), subs: g.subs.map(() => z()), rest: z() })), other: {}, buckets: [] };
+  const bucketed = statKind === 'year' || statKind === 'half';
+  const bmap = new Map();
+  for (let day = dayStart(p0); day < p1; day = addDays(day, 1)) {
+    const d1 = addDays(day, 1);
+    const rel = pre.filter(e => e.start < d1 && (e.end ?? now) > day);
+    const h = hoursFor(day);
+    const win = (h && h.on && h.start < h.end) ? [hm2ms(day, h.start), hm2ms(day, h.end)] : null;
+    const ivOf = ids => merge(clip(rel.filter(e => ids.includes(e.cat)).map(e => [e.start, e.end ?? now]), day, d1));
+    const measure = iv => { const tot = sumIv(iv); const inside = win ? sumIv(clip(iv, win[0], win[1])) : 0; return { tot, out: tot - inside }; };
+    const add = (acc, m) => { acc.tot += m.tot; acc.out += m.out; };
+    const bk = bucketed ? weekMonday(day) : day;
+    if (!bmap.has(bk)) { const b = { start: bk, tot: 0, out: 0, seg: {} }; bmap.set(bk, b); R.buckets.push(b); }
+    const b = bmap.get(bk);
+    if (!rel.length) continue;
+    const wm = measure(merge(clip(rel.filter(e => isWork(cat(e.cat))).map(e => [e.start, e.end ?? now]), day, d1)));
+    add(R.work, wm); b.tot += wm.tot; b.out += wm.out;
+    R.groups.forEach(G => {
+      const all = measure(ivOf([G.g.main.id, ...G.g.subs.map(x => x.id)]));
+      if (!all.tot) return;
+      add(G.all, all);
+      let su = { tot: 0, out: 0 };
+      G.g.subs.forEach((sc, k) => { const m = measure(ivOf([sc.id])); add(G.subs[k], m); b.seg[sc.id] = (b.seg[sc.id] || 0) + m.tot; });
+      if (G.g.subs.length) su = measure(ivOf(G.g.subs.map(x => x.id)));
+      const rest = { tot: all.tot - su.tot, out: all.out - su.out };
+      add(G.rest, rest); b.seg['rest:' + G.g.main.id] = (b.seg['rest:' + G.g.main.id] || 0) + rest.tot;
+    });
+    S.categories.filter(c => c.type === 'other').forEach(c => { const m = measure(ivOf([c.id])); if (m.tot) R.other[c.id] = (R.other[c.id] || 0) + m.tot; });
+  }
+  return R;
+}
+const pct = (a, b) => b > 0 ? Math.round(100 * a / b) : 0;
+function srow(name, color, val, base, outVal, indent) {
+  const p = pct(val, base);
+  return '<div class="srow"><div class="row between"><span class="row">' + (indent ? '<span class="mute">↳</span>' : '') + '<span class="dot" style="background:' + esc(color) + '"></span>' + esc(name) + '</span><span class="num">' + fmtDur(val) + ' <b>' + p + ' %</b></span></div>' +
+    '<div class="bar"><i style="width:' + Math.min(100, p) + '%;background:' + esc(color) + '"></i></div>' +
+    (outVal != null && val > 0 ? '<div class="small mute">varav ' + pct(outVal, val) + ' % utanför normaltid (' + fmtDur(outVal) + ')</div>' : '') + '</div>';
+}
+function chartSegments(R) {
+  if (chartMode === 'inout') return [{ key: 'in', name: 'Inom normaltid', color: 'var(--in)' }, { key: 'out', name: 'Utanför normaltid', color: 'var(--out)' }];
+  const segs = [];
+  R.groups.forEach(G => {
+    if (!G.all.tot) return;
+    G.g.subs.forEach((sc, k) => { if (G.subs[k].tot) segs.push({ key: sc.id, name: sc.name, color: sc.color }); });
+    if (G.rest.tot > 0) segs.push({ key: 'rest:' + G.g.main.id, name: G.g.subs.length ? 'Övrigt ' + G.g.main.name.toLowerCase() : G.g.main.name, color: G.g.main.color });
+  });
+  return segs;
+}
+const segVal = (b, key) => key === 'in' ? b.tot - b.out : key === 'out' ? b.out : (b.seg[key] || 0);
+function bucketLabel(b) { return (statKind === 'year' || statKind === 'half') ? 'Vecka ' + isoWeek(b.start) : WDL[wdIdx(b.start)] + ' ' + dm(b.start); }
+function drawChart(R, segs) {
+  const B = R.buckets, n = B.length;
+  if (!n) return '';
+  const W = 360, H = 170, L = 26, T = 8, Bm = 18, ph = H - T - Bm, pw = W - L - 4;
+  let maxH = Math.max(1, ...B.map(b => (chartMode === 'inout' ? b.tot : segs.reduce((a, s) => a + segVal(b, s.key), 0)) / 3600000));
+  const step = maxH <= 10 ? 2 : maxH <= 25 ? 5 : maxH <= 60 ? 10 : 20;
+  maxH = Math.ceil(maxH / step) * step;
+  const y = hrs => T + ph - ph * hrs / maxH;
+  let g = '';
+  for (let v = 0; v <= maxH; v += step) g += '<line class="grid" x1="' + L + '" x2="' + (W - 4) + '" y1="' + y(v) + '" y2="' + y(v) + '"/><text x="' + (L - 4) + '" y="' + (y(v) + 3) + '" text-anchor="end">' + v + ' h</text>';
+  const slot = pw / n, bw = Math.max(2, Math.min(28, slot * 0.72));
+  const every = Math.ceil(n / (statKind === 'week' ? 7 : 8));
+  B.forEach((b, i) => {
+    const x = L + slot * i + (slot - bw) / 2;
+    let acc = 0;
+    const dim = statSel != null && statSel !== i ? ' opacity="0.35"' : '';
+    segs.forEach(sg => {
+      const v = segVal(b, sg.key) / 3600000; if (v <= 0) return;
+      const y0 = y(acc), y1 = y(acc + v); acc += v;
+      g += '<rect x="' + x.toFixed(1) + '" y="' + y1.toFixed(1) + '" width="' + bw.toFixed(1) + '" height="' + Math.max(0.5, y0 - y1 - (y0 - y1 > 3 ? 1.5 : 0)).toFixed(1) + '" rx="' + Math.min(2, bw / 4) + '" style="fill:' + sg.color + '"' + dim + '/>';
+    });
+    if (i % every === 0) g += '<text x="' + (L + slot * i + slot / 2).toFixed(1) + '" y="' + (H - 5) + '" text-anchor="middle">' + ((statKind === 'year' || statKind === 'half') ? 'v' + isoWeek(b.start) : statKind === 'week' ? WD[i] : new Date(b.start).getDate()) + '</text>';
+    g += '<rect data-bar="' + i + '" x="' + (L + slot * i).toFixed(1) + '" y="' + T + '" width="' + slot.toFixed(1) + '" height="' + (ph + Bm) + '" fill="transparent"/>';
+  });
+  return '<svg class="chart" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Arbetstid per ' + ((statKind === 'year' || statKind === 'half') ? 'vecka' : 'dag') + '">' + g + '</svg>';
+}
+function viewStat() {
+  const [p0, p1] = periodRange(statKind, statAnchor);
+  const R = computeStats(p0, p1);
+  const kinds = [['week', 'Vecka'], ['month', 'Månad'], ['half', 'Halvår'], ['year', 'År']];
+  let h = '<div class="seg" style="margin-top:8px">' + kinds.map(([k, l]) => '<button data-skind="' + k + '" class="' + (k === statKind ? 'on' : '') + '">' + l + '</button>').join('') + '</div>';
+  h += '<div class="card navbar"><button data-sstep="-1">‹</button><div class="ttl">' + esc(periodLabel(statKind, p0)) + '</div><button data-sstep="1">›</button></div>';
+  if (!(Date.now() >= p0 && Date.now() < p1)) h += '<div class="row" style="justify-content:center"><button class="chip" data-sstep="0">Nuvarande period</button></div>';
+  h += '<div class="card today"><div><span>Total arbetstid</span><b class="big">' + fmtDur(R.work.tot) + '</b></div><div><span>Utanför normaltid</span><b class="big">' + fmtDur(R.work.out) + '</b><span>' + pct(R.work.out, R.work.tot) + ' % av arbetstiden</span></div></div>';
+  if (!R.work.tot && !Object.keys(R.other).length) return h + '<div class="card empty">Ingen tid loggad under perioden.</div>';
+  // belastning
+  const segs = chartSegments(R);
+  let info = '<span class="mute">Tryck på en stapel för detaljer.</span>';
+  if (statSel != null && R.buckets[statSel]) {
+    const b = R.buckets[statSel];
+    info = '<b>' + bucketLabel(b) + ':</b> ' + fmtDur(b.tot) + (chartMode === 'inout'
+      ? ' · inom ' + fmtDur(b.tot - b.out) + ' · utanför ' + fmtDur(b.out)
+      : ' · ' + segs.filter(sg => segVal(b, sg.key) > 0).map(sg => esc(sg.name) + ' ' + fmtDur(segVal(b, sg.key))).join(' · '));
+  }
+  h += '<div class="card"><div class="row between"><b>Belastning</b></div><div class="seg" style="margin-top:8px"><button data-cmode="inout" class="' + (chartMode === 'inout' ? 'on' : '') + '">Inom/utanför</button><button data-cmode="cat" class="' + (chartMode === 'cat' ? 'on' : '') + '">Per kategori</button></div>' +
+    '<div class="chartinfo">' + info + '</div>' + drawChart(R, segs) +
+    '<div class="legend">' + segs.map(sg => '<span><i style="background:' + sg.color + '"></i>' + esc(sg.name) + '</span>').join('') + '</div></div>';
+  // per huvudkategori
+  R.groups.forEach(G => {
+    if (!G.all.tot) return;
+    h += '<div class="card"><div class="row between"><b class="row"><span class="dot" style="background:' + esc(G.g.main.color) + '"></span>' + esc(G.g.main.name) + '</b><b class="num">' + fmtDur(G.all.tot) + '</b></div>' +
+      '<div class="small mute">varav ' + fmtDur(G.all.out) + ' utanför normaltid (' + pct(G.all.out, G.all.tot) + ' %)</div>';
+    if (G.g.subs.length) {
+      h += '<div style="margin-top:6px">';
+      G.g.subs.forEach((sc, k) => { if (G.subs[k].tot) h += srow(sc.name, sc.color, G.subs[k].tot, G.all.tot, G.subs[k].out, true); });
+      if (G.rest.tot > 0) h += srow('Övrigt', G.g.main.color, G.rest.tot, G.all.tot, G.rest.out, true);
+      h += '</div>';
+    }
+    h += '</div>';
+  });
+  // utanför normaltid som virtuell huvudkategori
+  if (R.work.out > 0) {
+    h += '<div class="card" style="border-color:var(--out)"><div class="row between"><b class="row"><span class="dot" style="background:var(--out)"></span>Utanför normaltid</b><b class="num">' + fmtDur(R.work.out) + '</b></div>' +
+      '<div class="small mute">' + pct(R.work.out, R.work.tot) + ' % av all arbetstid. Så här fördelas den:</div><div style="margin-top:6px">';
+    const rows = [];
+    R.groups.forEach(G => {
+      G.g.subs.forEach((sc, k) => { if (G.subs[k].out > 0) rows.push([sc.name, sc.color, G.subs[k].out]); });
+      if (G.rest.out > 0) rows.push([G.g.subs.length ? 'Övrigt ' + G.g.main.name.toLowerCase() : G.g.main.name, G.g.main.color, G.rest.out]);
+    });
+    rows.sort((a, b) => b[2] - a[2]).forEach(r => { h += srow(r[0], r[1], r[2], R.work.out, null, false); });
+    h += '</div></div>';
+  }
+  // ej arbetstid
+  const oth = S.categories.filter(c => R.other[c.id]);
+  if (oth.length) h += '<div class="card"><b>Ej arbetstid</b><div style="margin-top:6px">' + oth.map(c => '<div class="row between" style="padding:5px 0"><span class="row"><span class="dot" style="background:' + esc(c.color) + '"></span>' + esc(c.name) + '</span><span class="num">' + fmtDur(R.other[c.id]) + '</span></div>').join('') + '</div></div>';
+  return h;
+}
+
+/* ---------- view: inställningar ---------- */
+function viewSettings() {
+  const works = S.categories.filter(c => c.type === 'work');
+  let h = '<div class="sectionlbl">Kategorier</div><div class="card">';
+  S.categories.forEach((c, i) => {
+    const used = E.some(e => e.cat === c.id);
+    h += '<div class="catrow" style="' + (c.archived ? 'opacity:.5' : '') + '"><input type="color" value="' + esc(c.color) + '" data-cc="' + i + '"><input type="text" value="' + esc(c.name) + '" data-cn="' + i + '"><div class="row"><button class="icon" data-up="' + i + '">↑</button><button class="icon" data-down="' + i + '">↓</button></div>' +
+      '<div class="sub2"><select data-ct="' + i + '"><option value="work"' + (c.type === 'work' ? ' selected' : '') + '>Arbetstid</option><option value="sub"' + (c.type === 'sub' ? ' selected' : '') + '>Delkategori</option><option value="other"' + (c.type === 'other' ? ' selected' : '') + '>Ej arbetstid</option></select>' +
+      (c.type === 'sub' ? '<select data-cp="' + i + '"><option value="">under …</option>' + works.map(wc => '<option value="' + esc(wc.id) + '"' + (wc.id === c.parent ? ' selected' : '') + '>under ' + esc(wc.name) + '</option>').join('') + '</select>' : '') +
+      (c.archived ? '<button class="chip" data-unarch="' + i + '">Återställ</button>' : '<button class="chip" data-del="' + i + '">' + (used ? 'Arkivera' : 'Ta bort') + '</button>') + '</div></div>';
+  });
+  h += '<button class="btn sec block" data-addcat style="margin-top:10px">+ Ny kategori</button>' +
+    '<p class="help"><b>Arbetstid</b> räknas i flexen. <b>Delkategori</b> delar upp arbetstid under en huvudkategori – startar du den startas huvudkategorin också. <b>Ej arbetstid</b> loggas men räknas inte.</p></div>';
+  h += '<div class="sectionlbl">Normal arbetstid</div><div class="card">';
+  const curJ = schedIdxFor(Date.now());
+  for (let j = S.schedules.length - 1; j >= 0; j--) {
+    const sc = S.schedules[j];
+    h += '<div class="sched"' + (j < S.schedules.length - 1 ? ' style="border-top:1px solid var(--line);padding-top:12px"' : '') + '><div class="hdr"><span>' +
+      (j === 0 ? '<b>Från början</b>' : '<span class="small mute">Gäller från</span> <input type="date" data-sfrom="' + j + '" value="' + esc(sc.from) + '">') +
+      (j === curJ ? ' <span class="tag" style="color:var(--ok)">gäller nu</span>' : '') + '</span>' +
+      (j > 0 ? '<button class="chip" data-sdel="' + j + '">Ta bort</button>' : '') + '</div><div class="hours">';
+    sc.hours.forEach((x, i) => {
+      const key = j + ':' + i;
+      h += '<label class="row"><input type="checkbox" data-hon="' + key + '"' + (x.on ? ' checked' : '') + '> ' + WD[i] + '</label><input type="time" data-hs="' + key + '" value="' + esc(x.start) + '"' + (x.on ? '' : ' disabled') + '><input type="time" data-he="' + key + '" value="' + esc(x.end) + '"' + (x.on ? '' : ' disabled') + '>';
+    });
+    h += '</div></div>';
+  }
+  h += '<button class="btn sec block" data-addsched style="margin-top:6px">+ Nytt schema från ett datum</button>' +
+    '<p class="help">Varje dag räknas med det schema som gällde då, så historiken ändras inte när du byter schema. Ändrar du i ett schema som redan har loggade dagar får du välja om ändringen ska gälla från ett datum eller rätta hela perioden.</p></div>';
+  h += '<div class="sectionlbl">Förslag till flexappen</div><div class="card">' +
+    '<div class="row between"><span>Rast att lägga till (min)</span><input type="number" min="0" step="5" style="width:90px" data-lunch value="' + S.lunch + '"></div>' +
+    '<p class="help">Om flexappen drar av lunch automatiskt: ange minuterna så blir utstämplingen så mycket senare.</p>' +
+    '<div class="row between" style="margin-top:12px"><span>Tid på helg/fridag</span><select data-off><option value="separate"' + (S.offDays === 'separate' ? ' selected' : '') + '>Visa separat</option><option value="prev"' + (S.offDays === 'prev' ? ' selected' : '') + '>Lägg på dagen före</option><option value="next"' + (S.offDays === 'next' ? ' selected' : '') + '>Lägg på dagen efter</option></select></div>' +
+    '<p class="help">Gäller dagar utan normal arbetstid. ”Dagen före/efter” = närmaste arbetsdag inom samma vecka.</p></div>';
+  h += '<div class="sectionlbl">Data</div><div class="card">' +
+    '<button class="btn block" data-savebk>Spara säkerhetskopia</button>' +
+    '<button class="btn sec block" data-restore style="margin-top:8px">Återställ från säkerhetskopia</button>' +
+    '<button class="btn sec block" data-csv style="margin-top:8px">Kopiera alla poster som CSV</button>' +
+    '<p class="help">Allt sparas bara i den här telefonen. Spara en säkerhetskopia regelbundet, till exempel i Filer/iCloud Drive. ' + (lastBackup() ? 'Senaste: ' + esc(longDate(lastBackup())) + '.' : 'Ingen säkerhetskopia sparad än.') + '</p></div>';
+  return h;
+}
+
+/* ---------- scheman ---------- */
+function schedRange(j) {  // [från, till) som dk-strängar
+  return [S.schedules[j].from || '0000-00-00', S.schedules[j + 1] ? S.schedules[j + 1].from : '9999-99-99'];
+}
+function schedHasPast(j) {
+  const [a, b] = schedRange(j), today = dk(Date.now());
+  return E.some(e => { const k = dk(e.start); return isWork(cat(e.cat)) && k >= a && k < b && k < today; });
+}
+function addSchedule(from, hours) {
+  const ex = S.schedules.find(x => x.from === from);
+  if (ex) ex.hours = hours; else S.schedules.push({ from, hours });
+  S.schedules.sort((a, b) => (a.from || '').localeCompare(b.from || '')); S.schedules[0].from = '';
+}
+function changeHours(key, field, value) {
+  const [j, i] = key.split(':').map(Number);
+  const apply = hours => { hours[i][field] = value; };
+  if (!schedHasPast(j)) { apply(S.schedules[j].hours); commitSettings(); return render(); }
+  const [a, b] = schedRange(j);
+  const today = dk(Date.now());
+  const def = today > a && today < b ? today : '';
+  openModal('<h3>Ändra normal arbetstid</h3><p class="help">Det här schemat har redan loggade dagar. Hur ska ändringen (' + WDL[i] + ') gälla?</p>' +
+    '<label>Nytt schema från</label><input type="date" id="sFrom" value="' + def + '">' +
+    '<button class="btn block" id="sNew" style="margin-top:12px">Gäller från datumet ovan</button>' +
+    '<button class="btn sec block" id="sFix" style="margin-top:8px">Rätta hela perioden (ändrar historiken)</button>' +
+    '<button class="btn sec block" id="sCancel" style="margin-top:8px">Avbryt</button>', r => {
+    r.querySelector('#sCancel').onclick = () => { closeModal(); render(); };
+    r.querySelector('#sFix').onclick = () => { apply(S.schedules[j].hours); commitSettings(); closeModal(); render(); };
+    r.querySelector('#sNew').onclick = () => {
+      const f = r.querySelector('#sFrom').value;
+      if (!f || f <= a || f >= b) { toast('Välj ett datum inom schemats period (efter dess startdatum).'); return; }
+      const hours = clone(S.schedules[j].hours); apply(hours);
+      addSchedule(f, hours); commitSettings(); closeModal(); render(); toast('Nytt schema från ' + dm(dkToMs(f)));
+    };
+  });
+}
+
+/* ---------- säkerhetskopia ---------- */
+async function saveBackup() {
+  const d = new Date();
+  const name = 'flexlogg-' + d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + '.json';
+  const txt = JSON.stringify({ app: 'flexlogg', v: 1, saved: d.toISOString(), S, E, T });
+  const done = () => { try { localStorage.setItem(LBK, String(Date.now())); } catch (e) {} setSync(); render(); toast('Säkerhetskopia sparad'); };
+  try {
+    const file = new File([txt], name, { type: 'application/json' });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({ files: [file], title: name });
+      return done();
+    }
+  } catch (e) { if (e && e.name === 'AbortError') return; }
+  try {
+    const url = URL.createObjectURL(new Blob([txt], { type: 'application/json' }));
+    const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+    done();
+  } catch (e) { copyText(txt); }
+}
+
+/* ---------- events ---------- */
+$('#nav').addEventListener('click', ev => {
+  const b = ev.target.closest('button[data-tab]'); if (!b) return;
+  tab = b.dataset.tab; saveLocal(); render(); window.scrollTo(0, 0);
+});
+const view = $('#view');
+view.addEventListener('click', ev => {
+  const t = ev.target.closest('[data-press],[data-chip],[data-logday],[data-edit],[data-add],[data-week],[data-copyday],[data-copyweek],[data-mark],[data-unmark],[data-markall],[data-gotoweek],[data-up],[data-down],[data-del],[data-unarch],[data-addcat],[data-csv],[data-savebk],[data-restore],[data-addsched],[data-sdel],[data-skind],[data-sstep],[data-cmode],[data-bar]');
+  if (!t) return;
+  const d = t.dataset;
+  if (d.press) return press(d.press);
+  if (d.chip) {
+    if (d.chip === 'now') SM = { kind: 'now' };
+    else if (d.chip === 'abs') SM = { kind: 'abs', ms: Math.floor(Date.now() / MIN) * MIN };
+    else SM = { kind: 'offset', min: Number(d.chip) };
+    render();
+    if (SM.kind === 'abs') { const i = $('#absInput'); i && i.focus(); }
+    return;
+  }
+  if (d.logday != null) { logDay = d.logday === '0' ? dayStart(Date.now()) : addDays(logDay, Number(d.logday)); return render(); }
+  if (d.edit) return editEntry(d.edit);
+  if (d.add != null) return editEntry(null);
+  if (d.week != null) { flexWeek = d.week === '0' ? weekMonday(Date.now()) : addDays(flexWeek, 7 * Number(d.week)); return render(); }
+  if (d.mark || d.unmark || d.markall != null) {
+    const its = weekItems(weekData(flexWeek), flexWeek);
+    if (d.unmark) delete T[d.unmark];
+    else its.filter(it => it.cur && (d.markall != null ? it.state !== 'done' : it.key === d.mark)).forEach(markItem);
+    commit(); return render();
+  }
+  if (d.gotoweek) { flexWeek = Number(d.gotoweek); render(); window.scrollTo(0, 0); return; }
+  if (d.copyweek != null) return copyText(weekText(weekData(flexWeek), flexWeek));
+  if (d.copyday != null) {
+    const w = weekData(flexWeek), i = Number(d.copyday), p = w.props[i];
+    if (p) copyText(WD[i] + ' ' + dm(w.days[i].day) + ': In ' + clock(p.in) + '  Ut ' + clock(p.out) + '  (' + fmtDur(p.dur) + ')');
+    return;
+  }
+  if (d.up != null || d.down != null) {
+    const i = Number(d.up ?? d.down), j = d.up != null ? i - 1 : i + 1;
+    if (j < 0 || j >= S.categories.length) return;
+    [S.categories[i], S.categories[j]] = [S.categories[j], S.categories[i]];
+    commitSettings(); return render();
+  }
+  if (d.del != null) {
+    const i = Number(d.del), c = S.categories[i];
+    if (!t.dataset.sure) { t.dataset.sure = 1; t.textContent = 'Säker?'; return; }
+    E.filter(e => e.cat === c.id && e.end == null).forEach(e => { e.end = Date.now(); commitEntries(e); });
+    if (E.some(e => e.cat === c.id)) c.archived = true; else S.categories.splice(i, 1);
+    S.categories.forEach(x => { if (x.parent === c.id && !cat(c.id)) x.parent = ''; });
+    commitSettings(); return render();
+  }
+  if (d.unarch != null) { delete S.categories[Number(d.unarch)].archived; commitSettings(); return render(); }
+  if (d.addcat != null) {
+    const firstWork = S.categories.find(c => c.type === 'work' && !c.archived);
+    S.categories.push({ id: newId(), name: 'Ny kategori', type: firstWork ? 'sub' : 'work', parent: firstWork ? firstWork.id : '', color: PALETTE[S.categories.length % PALETTE.length] });
+    commitSettings(); render();
+    const inputs = view.querySelectorAll('[data-cn]'); const last = inputs[inputs.length - 1]; if (last) { last.focus(); last.select(); }
+    return;
+  }
+  if (d.csv != null) {
+    const rows = [['datum', 'kategori', 'typ', 'start', 'slut', 'minuter'].join(';')];
+    const tn = { work: 'arbetstid', sub: 'delkategori', other: 'ej arbetstid' };
+    E.slice().sort((a, b) => a.start - b.start).forEach(e => {
+      const c = cat(e.cat) || { name: '?', type: '' };
+      const ds = new Date(e.start);
+      rows.push([ds.getFullYear() + '-' + pad(ds.getMonth() + 1) + '-' + pad(ds.getDate()), c.name, tn[c.type] || '', clock(e.start), e.end == null ? '' : (dayStart(e.end) === dayStart(e.start) ? '' : dm(e.end) + ' ') + clock(e.end), e.end == null ? '' : Math.round((e.end - e.start) / MIN)].join(';'));
+    });
+    return copyText(rows.join('\n'));
+  }
+  if (d.savebk != null) return saveBackup();
+  if (d.addsched != null) {
+    openModal('<h3>Nytt schema</h3><p class="help">Det nya schemat startar som en kopia av det som gäller då. Ändra sedan tiderna.</p><label>Gäller från</label><input type="date" id="nFrom" value="' + dk(Date.now()) + '"><div class="row" style="margin-top:12px;gap:8px"><button class="btn sec" id="nCancel" style="margin-left:auto">Avbryt</button><button class="btn" id="nOk">Skapa</button></div>', r => {
+      r.querySelector('#nCancel').onclick = closeModal;
+      r.querySelector('#nOk').onclick = () => {
+        const f = r.querySelector('#nFrom').value;
+        if (!f) { toast('Välj ett datum.'); return; }
+        if (S.schedules.some(x => x.from === f)) { toast('Det finns redan ett schema från det datumet.'); return; }
+        addSchedule(f, clone(S.schedules[schedIdxFor(dkToMs(f))].hours));
+        commitSettings(); closeModal(); render();
+      };
+    });
+    return;
+  }
+  if (d.sdel != null) {
+    if (!t.dataset.sure) { t.dataset.sure = 1; t.textContent = 'Säker?'; return; }
+    S.schedules.splice(Number(d.sdel), 1); commitSettings(); return render();
+  }
+  if (d.skind) { statKind = d.skind; statAnchor = Date.now(); statSel = null; return render(); }
+  if (d.sstep != null) { statAnchor = d.sstep === '0' ? Date.now() : shiftPeriod(statKind, periodRange(statKind, statAnchor)[0], Number(d.sstep)); statSel = null; return render(); }
+  if (d.cmode) { chartMode = d.cmode; return render(); }
+  if (d.bar != null) { statSel = statSel === Number(d.bar) ? null : Number(d.bar); return render(); }
+  if (d.restore != null) {
+    openModal('<h3>Återställ</h3><p class="help">Välj en säkerhetskopia (.json). Allt nuvarande i appen ersätts.</p><input type="file" id="rFile" accept=".json,application/json,text/plain"><label>…eller klistra in texten</label><textarea id="rTxt" rows="4"></textarea><div class="row" style="margin-top:12px;gap:8px"><button class="btn sec" id="rCancel" style="margin-left:auto">Avbryt</button><button class="btn danger" id="rOk">Ersätt</button></div>', r => {
+      r.querySelector('#rCancel').onclick = closeModal;
+      r.querySelector('#rFile').onchange = async ev => { const f = ev.target.files[0]; if (f) r.querySelector('#rTxt').value = await f.text(); };
+      r.querySelector('#rOk').onclick = () => {
+        try {
+          const o = JSON.parse(r.querySelector('#rTxt').value);
+          if (!o || !o.S || !Array.isArray(o.E)) throw 0;
+          S = normalizeSettings(o.S); E = o.E; T = (o.T && typeof o.T === 'object') ? o.T : {};
+          commit(); closeModal(); render(); toast('Återställt');
+        } catch (e) { toast('Kunde inte läsa säkerhetskopian.'); }
+      };
+    });
+  }
+});
+view.addEventListener('change', ev => {
+  const t = ev.target, d = t.dataset;
+  if (t.id === 'absInput') { const ms = fromInput(t.value); if (ms != null) { SM = { kind: 'abs', ms }; $('#stampShow').textContent = stampLabel(); } return; }
+  if (d.cn != null) { S.categories[Number(d.cn)].name = t.value.trim() || 'Namnlös'; commitSettings(); return; }
+  if (d.cc != null) { S.categories[Number(d.cc)].color = t.value; commitSettings(); return; }
+  if (d.ct != null) {
+    const c = S.categories[Number(d.ct)]; c.type = t.value;
+    if (c.type === 'sub' && !c.parent) { const w = S.categories.find(x => x.type === 'work' && x.id !== c.id); c.parent = w ? w.id : ''; }
+    if (c.type !== 'work') S.categories.forEach(x => { if (x.parent === c.id) x.parent = ''; });
+    commitSettings(); return render();
+  }
+  if (d.cp != null) { S.categories[Number(d.cp)].parent = t.value; commitSettings(); return; }
+  if (d.hon != null) return changeHours(d.hon, 'on', t.checked);
+  if (d.hs != null) return changeHours(d.hs, 'start', t.value);
+  if (d.he != null) return changeHours(d.he, 'end', t.value);
+  if (d.sfrom != null) {
+    const j = Number(d.sfrom), v = t.value;
+    if (!v || S.schedules.some((x, k) => k !== j && x.from === v)) { toast('Ogiltigt eller upptaget datum.'); return render(); }
+    S.schedules[j].from = v; S.schedules.sort((a, b) => (a.from || '').localeCompare(b.from || '')); S.schedules[0].from = '';
+    commitSettings(); return render();
+  }
+  if (d.lunch != null) { S.lunch = Math.max(0, Number(t.value) || 0); commitSettings(); return; }
+  if (d.off != null) { S.offDays = t.value; commitSettings(); return; }
+});
+
+/* ---------- ticking clock ---------- */
+setInterval(() => {
+  if (tab !== 'stampla' || $('#modalRoot').innerHTML) return;
+  const now = Date.now();
+  document.querySelectorAll('[data-run]').forEach(el => { el.textContent = fmtRun(now - Number(el.dataset.run)); });
+  if (E.some(e => e.end == null)) {
+    const s = daySummary(dayStart(now));
+    const a = $('#tTotal'), b = $('#tOut'); if (a) a.textContent = fmtDur(s.total); if (b) b.textContent = fmtDur(s.outside);
+  }
+  const ss = $('#stampShow'); if (ss && SM.kind !== 'abs') ss.textContent = stampLabel();
+}, 1000);
+
+/* ---------- start ---------- */
+loadLocal();
+render();
+setSync();
+try { navigator.storage && navigator.storage.persist && navigator.storage.persist(); } catch (e) {}
+if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
+</script>
+</body>
+</html>
