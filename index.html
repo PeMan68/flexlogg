@@ -456,8 +456,7 @@ function viewLog() {
     const ind = c.type === 'sub' ? '&nbsp;&nbsp;↳ ' : '';
     const startTxt = dayStart(e.start) === logDay ? clock(e.start) : dm(e.start) + ' ' + clock(e.start);
     const endTxt = e.end == null ? 'pågår' : (dayStart(e.end) === logDay ? clock(e.end) : dm(e.end) + ' ' + clock(e.end));
-    h += '<div class="entry" data-edit="' + esc(e.id) + '"><span class="dot" style="background:' + esc(c.color) + '"></span><span>' + ind + esc(c.name) + '</span><span class="t">' + startTxt + '–' + endTxt + '<br><span class="mute small">' + fmtDur((e.end ?? now) - e.start) + '</span></span></div>' +
-      (e.note ? '<div class="small mute" style="padding:0 2px 8px 22px;border-bottom:1px solid var(--line);margin-top:-6px">💬 ' + esc(e.note) + '</div>' : '');
+    h += '<div class="entry" data-edit="' + esc(e.id) + '"><span class="dot" style="background:' + esc(c.color) + '"></span><span>' + ind + esc(c.name) + (e.note ? '<br><span class="mute small">💬 ' + esc(e.note) + '</span>' : '') + '</span><span class="t">' + startTxt + '–' + endTxt + '<br><span class="mute small">' + fmtDur((e.end ?? now) - e.start) + '</span></span></div>';
   });
   h += '</div><button class="btn block" data-add>+ Lägg till stämpling</button>';
   return h;
