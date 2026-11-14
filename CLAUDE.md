@@ -27,7 +27,7 @@ Publiceras via GitHub Pages från branch `master`, rot. Ingen byggprocess, inga 
     första har `from: ''` (= från början). Varje dag räknas med schemat som gällde då
     (`hoursFor(day)`), så historiken ändras inte när flexramen ändras.
   - `lunch` – minuter som jobbappen alltid drar (60). Läggs på utstämplingen i förslaget.
-  - `offDays: 'separate'|'prev'|'next'` – vart tid på dagar utan flexram (helg) förs.
+  - `offDays` – används inte längre (finns kvar i gamla data, ignoreras). Helgtid fördelas bakåt, se Förslag.
   - `v` – settings-version (2), används för engångsmigreringar.
 - `E` (poster): `[{ id, cat, start, end|null, startedBy? }]`, ms-tidsstämplar. `end: null` = pågår.
   `startedBy` på en huvudkategoripost = id på delkategoriposten som startade den.
@@ -43,7 +43,12 @@ Publiceras via GitHub Pages från branch `master`, rot. Ingen byggprocess, inga 
 - Arbetstid per dag = union av alla work/sub-intervall (ingen dubbelräkning).
 - Förslag per dag (`proposal()`): total arbetstid inkl. kvälls-/helgtid placeras inom flexramen.
   In = första stämpling inom ramen, annars ramens start. Ut = In + arbetstid + lunch. Går den över
-  ramens slut flyttas In tidigare; ryms det ändå inte visas överskottet.
+  ramens slut flyttas In tidigare.
+- Veckofördelning (`weekData()`): tid på dagar utan flexram (helg) + överskott fördelas bakåt från
+  fredag. Dagens max = flexramens längd − lunch. Det som inte ryms flyttas till dagen före, men bara
+  till dagar med loggad tid (lediga dagar lämnas orörda). Går det över måndag blir det
+  "Ryms inte i veckan" (röd varning, egen post med nyckel `sep-<måndag>` i `T`) som användaren själv
+  lägger på annan vecka i jobbappen.
 - Användaren loggar sin faktiska lunch i Flexlogg (stoppar Arbete) och stämplar inte lunch i jobbappen.
 - Statistik: vecka/månad/halvår/år. Delkategorier i % av sin huvudkategori + rad "Övrigt".
   "Utanför flexram" visas som virtuell huvudkategori med fördelning per delkategori.
