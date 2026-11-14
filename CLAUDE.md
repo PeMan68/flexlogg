@@ -57,6 +57,7 @@ markera överfört) · Statistik · Inställningar (kategorier, flexram-scheman,
 
 ## Arbetssätt
 - **Committa och pusha till `master` direkt när en ändring är klar** (med höjd `CACHE`-version).
+  Höj även `APP_VERSION` i `index.html` så den matchar (visas längst ned under Inställningar).
   Användaren kan bara testa via GitHub Pages, så ändringen måste vara pushad för att kunna provas.
 - Användaren vill resonera färdigt innan något byggs – fråga/föreslå först vid nya features.
 - Testa i mobilbredd (390 px). Syntaxkontroll: extrahera `<script>` och kör `node --check`.

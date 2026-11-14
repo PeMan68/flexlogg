@@ -167,8 +167,9 @@ const DEFAULT_SETTINGS = {
   offDays: 'separate'
 };
 let S = normalizeSettings({});
+const APP_VERSION = 'v9';   // håll lika med CACHE i sw.js
 let E = [];
-let T = {};          // överfört till flexappen: dag -> {at, in, out, dur}
+let T = {};        // överfört till flexappen: dag -> {at, in, out, dur}
 let tab = 'stampla';
 let SM = { kind: 'now' };          // stamp-time mode
 let logDay = dayStart(Date.now()), logWeek = weekMonday(Date.now());
@@ -845,6 +846,7 @@ function viewSettings() {
     '<button class="btn sec block" data-restore style="margin-top:8px">Återställ från säkerhetskopia</button>' +
     '<button class="btn sec block" data-csv style="margin-top:8px">Kopiera alla poster som CSV</button>' +
     '<p class="help">Allt sparas bara i den här telefonen. Spara en säkerhetskopia regelbundet, till exempel i Filer/iCloud Drive. ' + (lastBackup() ? 'Senaste: ' + esc(longDate(lastBackup())) + '.' : 'Ingen säkerhetskopia sparad än.') + '</p></div>';
+  h += '<p class="help" style="text-align:center;margin:18px 0 6px">Flexlogg ' + APP_VERSION + '</p>';
   return h;
 }
 
