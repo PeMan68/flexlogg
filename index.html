@@ -303,7 +303,9 @@ function press(catId) {
   if (t > Date.now() + MIN) { toast('Stämpeltiden ligger i framtiden.'); return; }
   const act = activeOf(catId);
   const touched = [];
+  let noteFor = null;
   if (act) {
+    noteFor = act;
     if (t < act.start) { toast('Sluttiden är före starttiden (' + clock(act.start) + ').'); return; }
     stopEntry(act, t); touched.push(act);
     if (c.type === 'sub') {
@@ -322,6 +324,7 @@ function press(catId) {
       // byter man delkategori stoppas den som pågår under samma huvudkategori
       E.filter(e => e.end == null && cat(e.cat) && cat(e.cat).type === 'sub' && cat(e.cat).parent === c.parent).forEach(e => {
         stopEntry(e, t); touched.push(e);
+        noteFor = noteFor || e;
         const pa = p && activeOf(p.id);
         if (pa && pa.startedBy === e.id) { pa.startedBy = ne.id; touched.push(pa); }
       });
@@ -333,6 +336,28 @@ function press(catId) {
   SM = { kind: 'now' };
   commitEntries(...touched);
   render();
+  if (noteFor) askNote(noteFor);
+}
+function recentNotes(n) {
+  const seen = [];
+  E.filter(e => e.note).sort((a, b) => (b.end ?? b.start) - (a.end ?? a.start)).forEach(e => { if (!seen.includes(e.note) && seen.length < n) seen.push(e.note); });
+  return seen;
+}
+function askNote(e) {
+  const c = cat(e.cat) || { name: '' };
+  const sug = recentNotes(5);
+  openModal('<h3>Kommentar <span class="mute small">– ' + esc(c.name) + '</span></h3>' +
+    '<input type="text" id="nTxt" maxlength="200" placeholder="t.ex. elevens namn (valfritt)" value="' + esc(e.note || '') + '">' +
+    (sug.length ? '<div class="row" style="flex-wrap:wrap;gap:6px;margin-top:10px">' + sug.map((s, i) => '<button class="chip" data-sug="' + i + '">' + esc(s) + '</button>').join('') + '</div>' : '') +
+    '<div class="row" style="margin-top:16px;gap:8px"><button class="btn sec" id="nSkip" style="margin-left:auto">Hoppa över</button><button class="btn" id="nSave">Spara</button></div>', r => {
+    const inp = r.querySelector('#nTxt');
+    r.querySelectorAll('[data-sug]').forEach(b => b.onclick = () => { inp.value = sug[b.dataset.sug]; inp.focus(); });
+    r.querySelector('#nSkip').onclick = closeModal;
+    const save = () => { const v = inp.value.trim(); if (v) e.note = v; else delete e.note; commitEntries(e); closeModal(); render(); };
+    r.querySelector('#nSave').onclick = save;
+    inp.onkeydown = ev => { if (ev.key === 'Enter') save(); };
+    inp.focus();
+  });
 }
 
 /* ---------- UI: shared ---------- */
@@ -431,7 +456,8 @@ function viewLog() {
     const ind = c.type === 'sub' ? '&nbsp;&nbsp;↳ ' : '';
     const startTxt = dayStart(e.start) === logDay ? clock(e.start) : dm(e.start) + ' ' + clock(e.start);
     const endTxt = e.end == null ? 'pågår' : (dayStart(e.end) === logDay ? clock(e.end) : dm(e.end) + ' ' + clock(e.end));
-    h += '<div class="entry" data-edit="' + esc(e.id) + '"><span class="dot" style="background:' + esc(c.color) + '"></span><span>' + ind + esc(c.name) + '</span><span class="t">' + startTxt + '–' + endTxt + '<br><span class="mute small">' + fmtDur((e.end ?? now) - e.start) + '</span></span></div>';
+    h += '<div class="entry" data-edit="' + esc(e.id) + '"><span class="dot" style="background:' + esc(c.color) + '"></span><span>' + ind + esc(c.name) + '</span><span class="t">' + startTxt + '–' + endTxt + '<br><span class="mute small">' + fmtDur((e.end ?? now) - e.start) + '</span></span></div>' +
+      (e.note ? '<div class="small mute" style="padding:0 2px 8px 22px;border-bottom:1px solid var(--line);margin-top:-6px">💬 ' + esc(e.note) + '</div>' : '');
   });
   h += '</div><button class="btn block" data-add>+ Lägg till stämpling</button>';
   return h;
@@ -445,6 +471,7 @@ function editEntry(id) {
     '<label>Kategori</label><select id="mCat">' + opts + '</select>' +
     '<label>Start</label><input type="datetime-local" id="mStart" value="' + toInput(e.start) + '">' +
     '<label>Slut <span class="small">(tomt = pågår)</span></label><input type="datetime-local" id="mEnd" value="' + (e.end == null ? '' : toInput(e.end)) + '">' +
+    '<label>Kommentar</label><input type="text" id="mNote" maxlength="200" value="' + esc(e.note || '') + '">' +
     '<div class="row" style="margin-top:16px;gap:8px">' + (isNew ? '' : '<button class="btn danger" id="mDel">Ta bort</button>') + '<button class="btn sec" id="mCancel" style="margin-left:auto">Avbryt</button><button class="btn" id="mSave">Spara</button></div>', r => {
     r.querySelector('#mCancel').onclick = closeModal;
     const del = r.querySelector('#mDel');
@@ -461,6 +488,7 @@ function editEntry(id) {
       if (en == null && E.some(x => x.id !== e.id && x.cat === r.querySelector('#mCat').value && x.end == null)) { toast('Kategorin har redan en pågående mätning.'); return; }
       const oldStart = isNew ? null : e.start;
       e.cat = r.querySelector('#mCat').value; e.start = st; e.end = en;
+      const nt = r.querySelector('#mNote').value.trim(); if (nt) e.note = nt; else delete e.note;
       if (isNew) E.push(e);
       commitEntries(e, oldStart); closeModal(); render();
     };

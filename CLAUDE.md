@@ -56,5 +56,7 @@ Stämpla · Logg (redigera/lägg till/ta bort poster per dag) · Flex (veckoför
 markera överfört) · Statistik · Inställningar (kategorier, flexram-scheman, lunch, data).
 
 ## Arbetssätt
+- **Committa och pusha till `master` direkt när en ändring är klar** (med höjd `CACHE`-version).
+  Användaren kan bara testa via GitHub Pages, så ändringen måste vara pushad för att kunna provas.
 - Användaren vill resonera färdigt innan något byggs – fråga/föreslå först vid nya features.
 - Testa i mobilbredd (390 px). Syntaxkontroll: extrahera `<script>` och kör `node --check`.
