@@ -476,9 +476,10 @@ function editEntry(id) {
     const del = r.querySelector('#mDel');
     if (del) del.onclick = () => {
       if (!del.dataset.sure) { del.dataset.sure = 1; del.textContent = 'Säker?'; return; }
-      E = E.filter(x => x.id !== e.id);
-      E.forEach(x => { if (x.startedBy === e.id) delete x.startedBy; });
-      commitEntries(e); closeModal(); render();
+      // tar man bort en delkategoripost tas även huvudkategoriposten bort om den startades av just den
+      const gone = E.filter(x => x.id === e.id || x.startedBy === e.id);
+      E = E.filter(x => !gone.includes(x));
+      commitEntries(...gone); closeModal(); render();
     };
     r.querySelector('#mSave').onclick = () => {
       const st = fromInput(r.querySelector('#mStart').value), en = fromInput(r.querySelector('#mEnd').value);
