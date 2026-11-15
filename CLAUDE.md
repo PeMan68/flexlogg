@@ -40,7 +40,9 @@ Publiceras via GitHub Pages från branch `master`, rot. Ingen byggprocess, inga 
   Stoppa huvudkategori → stoppar dess delkategorier. Byte av delkategori under samma
   huvudkategori stoppar den gamla.
 - Stämpeltid: "Nu", −5/−15/−30 min eller valfri tid väljs *innan* man trycker; återgår till Nu.
-- Arbetstid per dag = union av alla work/sub-intervall (ingen dubbelräkning).
+- Arbetstid per dag = union av alla work/sub-intervall (ingen dubbelräkning), minus tid där en
+  `other`-post (lunch, ärende …) ligger över. Avdraget gäller alla ej-arbetstid-kategorier och görs
+  i både `daySummary()` och `computeStats()` (`subtractIv`). Posterna själva ändras aldrig.
 - Förslag per dag (`proposal()`): total arbetstid inkl. kvälls-/helgtid placeras inom flexramen.
   In = första stämpling inom ramen, annars ramens start. Ut = In + arbetstid + lunch. Går den över
   ramens slut flyttas In tidigare.

@@ -167,7 +167,7 @@ const DEFAULT_SETTINGS = {
   offDays: 'separate'
 };
 let S = normalizeSettings({});
-const APP_VERSION = 'v11';   // håll lika med CACHE i sw.js
+const APP_VERSION = 'v12';   // håll lika med CACHE i sw.js
 let E = [];
 let T = {};        // överfört till flexappen: dag -> {at, in, out, dur}
 let tab = 'stampla';
@@ -246,17 +246,37 @@ function merge(iv) {
 const sumIv = iv => iv.reduce((a, [s, e]) => a + (e - s), 0);
 const clip = (iv, a, b) => iv.map(([s, e]) => [Math.max(s, a), Math.min(e, b)]).filter(([s, e]) => e > s);
 
+/* Tar bort tidsspannen i cut (sorterade, sammanslagna) ur iv. */
+function subtractIv(iv, cut) {
+  if (!cut.length) return iv;
+  const out = [];
+  for (let [s, e] of iv) {
+    for (const [cs, ce] of cut) {
+      if (ce <= s || cs >= e) continue;
+      if (cs > s) out.push([s, cs]);
+      s = Math.max(s, ce);
+      if (s >= e) break;
+    }
+    if (s < e) out.push([s, e]);
+  }
+  return out;
+}
+/* Ej arbetstid (t.ex. lunch) som ligger över arbetstid dras av från arbetstiden. */
+const offIv = (rel, d0, d1, now) => merge(clip(rel.filter(e => (cat(e.cat) || {}).type === 'other').map(e => [e.start, e.end ?? now]), d0, d1));
+
 function daySummary(day) {
   const d0 = day, d1 = addDays(day, 1), now = Date.now();
   const rel = E.filter(e => e.start < d1 && (e.end ?? now) > d0);
-  const work = merge(clip(rel.filter(e => isWork(cat(e.cat))).map(e => [e.start, e.end ?? now]), d0, d1));
+  const off = offIv(rel, d0, d1, now);
+  const work = subtractIv(merge(clip(rel.filter(e => isWork(cat(e.cat))).map(e => [e.start, e.end ?? now]), d0, d1)), off);
   const total = sumIv(work);
   const h = hoursFor(day);
   let win = null, inside = 0;
   if (h && h.on && h.start < h.end) { win = [hm2ms(day, h.start), hm2ms(day, h.end)]; inside = sumIv(clip(work, win[0], win[1])); }
   const byCat = {};
   S.categories.forEach(c => {
-    const t = sumIv(merge(clip(rel.filter(e => e.cat === c.id).map(e => [e.start, e.end ?? now]), d0, d1)));
+    const iv = merge(clip(rel.filter(e => e.cat === c.id).map(e => [e.start, e.end ?? now]), d0, d1));
+    const t = sumIv(c.type === 'other' ? iv : subtractIv(iv, off));
     if (t > 0) byCat[c.id] = t;
   });
   return { day, total, inside, outside: total - inside, win, first: work.length ? work[0][0] : null, byCat, entries: rel };
@@ -693,14 +713,16 @@ function computeStats(p0, p1) {
     const rel = pre.filter(e => e.start < d1 && (e.end ?? now) > day);
     const h = hoursFor(day);
     const win = (h && h.on && h.start < h.end) ? [hm2ms(day, h.start), hm2ms(day, h.end)] : null;
-    const ivOf = ids => merge(clip(rel.filter(e => ids.includes(e.cat)).map(e => [e.start, e.end ?? now]), day, d1));
+    const off = offIv(rel, day, d1, now);
+    const ivRaw = ids => merge(clip(rel.filter(e => ids.includes(e.cat)).map(e => [e.start, e.end ?? now]), day, d1));
+    const ivOf = ids => subtractIv(ivRaw(ids), off);
     const measure = iv => { const tot = sumIv(iv); const inside = win ? sumIv(clip(iv, win[0], win[1])) : 0; return { tot, out: tot - inside }; };
     const add = (acc, m) => { acc.tot += m.tot; acc.out += m.out; };
     const bk = bucketed ? weekMonday(day) : day;
     if (!bmap.has(bk)) { const b = { start: bk, tot: 0, out: 0, seg: {} }; bmap.set(bk, b); R.buckets.push(b); }
     const b = bmap.get(bk);
     if (!rel.length) continue;
-    const wm = measure(merge(clip(rel.filter(e => isWork(cat(e.cat))).map(e => [e.start, e.end ?? now]), day, d1)));
+    const wm = measure(subtractIv(merge(clip(rel.filter(e => isWork(cat(e.cat))).map(e => [e.start, e.end ?? now]), day, d1)), off));
     add(R.work, wm); b.tot += wm.tot; b.out += wm.out;
     R.groups.forEach(G => {
       const all = measure(ivOf([G.g.main.id, ...G.g.subs.map(x => x.id)]));
@@ -712,7 +734,7 @@ function computeStats(p0, p1) {
       const rest = { tot: all.tot - su.tot, out: all.out - su.out };
       add(G.rest, rest); b.seg['rest:' + G.g.main.id] = (b.seg['rest:' + G.g.main.id] || 0) + rest.tot;
     });
-    S.categories.filter(c => c.type === 'other').forEach(c => { const m = measure(ivOf([c.id])); if (m.tot) R.other[c.id] = (R.other[c.id] || 0) + m.tot; });
+    S.categories.filter(c => c.type === 'other').forEach(c => { const m = measure(ivRaw([c.id])); if (m.tot) R.other[c.id] = (R.other[c.id] || 0) + m.tot; });
   }
   return R;
 }
