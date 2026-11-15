@@ -168,7 +168,7 @@ const DEFAULT_SETTINGS = {
   offDays: 'separate'
 };
 let S = normalizeSettings({});
-const APP_VERSION = 'v14';   // håll lika med CACHE i sw.js
+const APP_VERSION = 'v15';   // håll lika med CACHE i sw.js
 let E = [];
 let T = {};        // överfört till flexappen: dag -> {at, in, out, dur}
 let tab = 'stampla';
@@ -802,7 +802,6 @@ function viewStat() {
   let h = '<div class="seg" style="margin-top:8px">' + kinds.map(([k, l]) => '<button data-skind="' + k + '" class="' + (k === statKind ? 'on' : '') + '">' + l + '</button>').join('') + '</div>';
   h += '<div class="card navbar"><button data-sstep="-1">‹</button><div class="ttl">' + esc(periodLabel(statKind, p0)) + '</div><button data-sstep="1">›</button></div>';
   if (!(Date.now() >= p0 && Date.now() < p1)) h += '<div class="row" style="justify-content:center"><button class="chip" data-sstep="0">Nuvarande period</button></div>';
-  if (w.over >= MIN) h += '<div class="card" style="border-color:var(--bad)"><b style="color:var(--bad)">⚠ ' + fmtDur(w.over) + ' ryms inte i veckan</b><div class="small" style="margin-top:4px">Alla dagar med loggad tid är fulla. Lägg överskottet på en annan vecka i jobbappen (se längst ned).</div></div>';
   h += '<div class="card today"><div><span>Total arbetstid</span><b class="big">' + fmtDur(R.work.tot) + '</b></div><div><span>Utanför normaltid</span><b class="big">' + fmtDur(R.work.out) + '</b><span>' + pct(R.work.out, R.work.tot) + ' % av arbetstiden</span></div></div>';
   if (!R.work.tot && !Object.keys(R.other).length) return h + '<div class="card empty">Ingen tid loggad under perioden.</div>';
   // belastning
