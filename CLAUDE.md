@@ -29,7 +29,8 @@ Publiceras via GitHub Pages från branch `master`, rot. Ingen byggprocess, inga 
     (tiden då stämplingar i jobbappen får ligga), index 0 = måndag. Sorterad på `from`,
     första har `from: ''` (= från början). Varje dag räknas med schemat som gällde då
     (`hoursFor(day)`), så historiken ändras inte när flexramen ändras.
-  - `lunch` – minuter som jobbappen alltid drar (60). Läggs på utstämplingen i förslaget.
+  - `lunch` – minuter som jobbappen drar (60). Läggs på utstämplingen i förslaget, men bara på dagar
+    med mer arbetstid än `lunchOver` (min, förval 240 = 4 h). Kortare dagar får ingen rast.
   - `offDays` – används inte längre (finns kvar i gamla data, ignoreras). Helgtid fördelas bakåt, se Förslag.
   - `v` – settings-version (2), används för engångsmigreringar.
 - `E` (poster): `[{ id, cat, start, end|null, startedBy? }]`, ms-tidsstämplar. `end: null` = pågår.

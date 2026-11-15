@@ -164,10 +164,11 @@ const DEFAULT_SETTINGS = {
   ],
   hours: [0,1,2,3,4,5,6].map(i => ({ on: i < 5, start: '07:30', end: '16:30' })),  // bara mall/migrering
   lunch: 0,
+  lunchOver: 240,   // rast läggs bara på dagar med mer arbetstid än så (min)
   offDays: 'separate'
 };
 let S = normalizeSettings({});
-const APP_VERSION = 'v13';   // håll lika med CACHE i sw.js
+const APP_VERSION = 'v14';   // håll lika med CACHE i sw.js
 let E = [];
 let T = {};        // överfört till flexappen: dag -> {at, in, out, dur}
 let tab = 'stampla';
@@ -188,6 +189,7 @@ function normalizeSettings(s) {
   o.schedules[0].from = '';
   delete o.hours;
   o.lunch = Math.max(0, Number(o.lunch) || 0);
+  o.lunchOver = Math.max(0, Number(o.lunchOver) || 0);
   return o;
 }
 function schedIdxFor(day) { const k = dk(day); let j = 0; S.schedules.forEach((sc, i) => { if ((sc.from || '') <= k) j = i; }); return j; }
@@ -285,11 +287,11 @@ function proposal(sum, extra) {
   const durMin = Math.round((sum.total + (extra || 0)) / MIN);
   if (!sum.win || durMin <= 0) return null;
   const [ws, we] = sum.win;
-  const dur = durMin * MIN, lunch = S.lunch * MIN;
+  const dur = durMin * MIN, lunch = durMin > S.lunchOver ? S.lunch * MIN : 0;
   let inT = (sum.first != null && sum.first >= ws && sum.first < we) ? Math.floor(sum.first / MIN) * MIN : ws;
   let outT = inT + dur + lunch;
   if (outT > we) { inT = Math.max(ws, we - dur - lunch); outT = inT + dur + lunch; }
-  return { in: inT, out: outT, dur, over: Math.max(0, outT - we) };
+  return { in: inT, out: outT, dur, lunch, over: Math.max(0, outT - we) };
 }
 /* Veckans förslag. Tid på dagar utan flexram (helg) och det som inte ryms en dag fördelas
    bakåt: fredag fylls först, överskottet går till dagen före (bara dagar med loggad tid) osv.
@@ -302,8 +304,10 @@ function weekData(mon) {
   for (let i = 6; i >= 0; i--) {
     const s = days[i];
     if (!s.win || s.total <= 0) continue;
-    const cap = Math.max(0, Math.floor((s.win[1] - s.win[0]) / MIN) * MIN - lunch);
-    const amount = s.total + carry, fit = Math.min(amount, cap);
+    // dagar över tröskeln får rast (lägre tak); korta dagar får ingen rast
+    const W = Math.floor((s.win[1] - s.win[0]) / MIN) * MIN, thr = S.lunchOver * MIN;
+    const amount = s.total + carry;
+    const fit = amount <= thr ? Math.min(amount, W) : Math.min(amount, Math.max(W - lunch, Math.min(W, thr)));
     extra[i] = fit - s.total;
     recv[i] = Math.max(0, fit - s.total);
     carry = amount - fit; out[i] = carry;
@@ -650,7 +654,7 @@ function viewFlex() {
   if (flexWeek !== weekMonday(Date.now())) h += '<div class="row" style="justify-content:center"><button class="chip" data-week="0">Denna vecka</button></div>';
   if (w.over >= MIN) h += '<div class="card" style="border-color:var(--bad)"><b style="color:var(--bad)">⚠ ' + fmtDur(w.over) + ' ryms inte i veckan</b><div class="small" style="margin-top:4px">Alla dagar med loggad tid är fulla. Lägg överskottet på en annan vecka i jobbappen (se längst ned).</div></div>';
   h += '<div class="card today"><div><span>Total arbetstid</span><b class="big">' + fmtDur(w.total) + '</b></div><div><span>varav utanför normaltid</span><b class="big">' + fmtDur(w.outside) + '</b></div></div>';
-  h += '<div class="card"><div class="row between"><b>Förslag till flexappen</b><button class="copy" data-copyweek>' + (pend.length && pend.length < items.filter(x => x.cur).length ? 'Kopiera ej överförda' : 'Kopiera veckan') + '</button></div><p class="help">Dagens arbetstid. Kvälls-, helg- och överskottstid fördelas bakåt från fredag så att allt ligger inom normal arbetstid' + (S.lunch ? ' (+' + S.lunch + ' min rast)' : '') + '. Markera det du lagt in i flexappen som överfört.</p>';
+  h += '<div class="card"><div class="row between"><b>Förslag till flexappen</b><button class="copy" data-copyweek>' + (pend.length && pend.length < items.filter(x => x.cur).length ? 'Kopiera ej överförda' : 'Kopiera veckan') + '</button></div><p class="help">Dagens arbetstid. Kvälls-, helg- och överskottstid fördelas bakåt från fredag så att allt ligger inom normal arbetstid' + (S.lunch ? ' (+' + S.lunch + ' min rast' + (S.lunchOver ? ' på dagar över ' + fmtDur(S.lunchOver * MIN) : '') + ')' : '') + '. Markera det du lagt in i flexappen som överfört.</p>';
   if (pend.length > 1) h += '<button class="btn sec block" data-markall style="margin-bottom:6px">Markera hela veckan som överförd</button>';
   let any = false;
   w.days.forEach((s, i) => {
@@ -660,7 +664,7 @@ function viewFlex() {
     const parts = Object.entries(s.byCat).filter(([id]) => cat(id) && cat(id).type !== 'work').map(([id, t]) => '<span class="tag">' + esc(cat(id).name) + ' ' + fmtDur(t) + '</span>').join(' ');
     const done = it && it.state === 'done';
     h += '<div class="day"' + (done ? ' style="opacity:.6"' : '') + '><div class="row between"><b>' + WDL[i] + ' ' + dm(s.day) + '</b>' + (p ? '<button class="copy" data-copyday="' + i + '">Kopiera</button>' : '') + '</div>';
-    if (p) h += '<div class="prop">In ' + clock(p.in) + ' &nbsp;→&nbsp; Ut ' + clock(p.out) + ' <span class="mute small">(' + fmtDur(p.dur) + (S.lunch ? ' + ' + S.lunch + ' min rast' : '') + ')</span></div>';
+    if (p) h += '<div class="prop">In ' + clock(p.in) + ' &nbsp;→&nbsp; Ut ' + clock(p.out) + ' <span class="mute small">(' + fmtDur(p.dur) + (p.lunch ? ' + ' + p.lunch / MIN + ' min rast' : '') + ')</span></div>';
     else if (s.total) h += '<div class="small" style="color:var(--warn)">Ingen normal arbetstid denna dag – tiden läggs på tidigare dagar</div>';
     h += '<div class="small mute">Loggat ' + fmtDur(s.total) + (s.outside ? ', varav ' + fmtDur(s.outside) + ' utanför normaltid' : '') + (w.recv[i] ? ' · +' + fmtDur(w.recv[i]) + ' från senare dag/helg' : '') + '</div>';
     if (w.out[i] >= MIN) h += '<div class="small" style="color:var(--warn)">' + fmtDur(w.out[i]) + ' ryms inte – flyttas till dagen före</div>';
@@ -877,8 +881,8 @@ function viewSettings() {
     '<p class="help">Varje dag räknas med det schema som gällde då, så historiken ändras inte när du byter schema. Ändrar du i ett schema som redan har loggade dagar får du välja om ändringen ska gälla från ett datum eller rätta hela perioden.</p></div>';
   h += '<div class="sectionlbl">Förslag till flexappen</div><div class="card">' +
     '<div class="row between"><span>Rast att lägga till (min)</span><input type="number" min="0" step="5" style="width:90px" data-lunch value="' + S.lunch + '"></div>' +
-    '<p class="help">Om flexappen drar av lunch automatiskt: ange minuterna så blir utstämplingen så mycket senare.</p>' +
-    '<p class="help">Gäller dagar utan normal arbetstid. ”Dagen före/efter” = närmaste arbetsdag inom samma vecka.</p></div>';
+    '<div class="row between" style="margin-top:10px"><span>…men bara om arbetstiden är över (min)</span><input type="number" min="0" step="15" style="width:90px" data-lunchover value="' + S.lunchOver + '"></div>' +
+    '<p class="help">Om flexappen drar av lunch automatiskt: ange minuterna så blir utstämplingen så mycket senare. Dagar med högst så många minuter arbetstid får ingen rast (240 = 4 h, 0 = alltid rast).</p></div>';
   h += '<div class="sectionlbl">Data</div><div class="card">' +
     '<button class="btn block" data-savebk>Spara säkerhetskopia</button>' +
     '<button class="btn sec block" data-restore style="margin-top:8px">Återställ från säkerhetskopia</button>' +
@@ -1073,6 +1077,7 @@ view.addEventListener('change', ev => {
     S.schedules[j].from = v; S.schedules.sort((a, b) => (a.from || '').localeCompare(b.from || '')); S.schedules[0].from = '';
     commitSettings(); return render();
   }
+  if (d.lunchover != null) { S.lunchOver = Math.max(0, Number(t.value) || 0); commitSettings(); return; }
   if (d.lunch != null) { S.lunch = Math.max(0, Number(t.value) || 0); commitSettings(); return; }
 });
 
