@@ -168,7 +168,7 @@ const DEFAULT_SETTINGS = {
   offDays: 'separate'
 };
 let S = normalizeSettings({});
-const APP_VERSION = 'v15';   // håll lika med CACHE i sw.js
+const APP_VERSION = 'v16';   // håll lika med CACHE i sw.js
 let E = [];
 let T = {};        // överfört till flexappen: dag -> {at, in, out, dur}
 let tab = 'stampla';
@@ -547,7 +547,7 @@ function editEntry(id) {
     '<label>Kategori</label><select id="mCat">' + opts + '</select>' +
     '<label>Start</label><input type="datetime-local" id="mStart" value="' + toInput(e.start) + '">' +
     '<label>Slut <span class="small">(tomt = pågår)</span></label><input type="datetime-local" id="mEnd" value="' + (e.end == null ? '' : toInput(e.end)) + '">' +
-    '<div id="mNoteWrap"><label id="mNoteLbl">Kommentar</label><input type="text" id="mNote" maxlength="200" value="' + esc(e.note || '') + '"></div>' +
+    '<div id="mNoteWrap"><label id="mNoteLbl">Kommentar</label><input type="text" id="mNote" maxlength="200" value="' + esc(e.note || '') + '"><div id="mSug" class="row" style="flex-wrap:wrap;gap:6px;margin-top:8px"></div></div>' +
     '<div class="row" style="margin-top:16px;gap:8px">' + (isNew ? '' : '<button class="btn danger" id="mDel">Ta bort</button>') + '<button class="btn sec" id="mCancel" style="margin-left:auto">Avbryt</button><button class="btn" id="mSave">Spara</button></div>', r => {
     r.querySelector('#mCancel').onclick = closeModal;
     // kommentarsfältet visas om kategorin använder kommentar (eller posten redan har en)
@@ -555,6 +555,10 @@ function editEntry(id) {
       const c = cat(r.querySelector('#mCat').value) || {};
       r.querySelector('#mNoteWrap').style.display = (c.note || r.querySelector('#mNote').value) ? '' : 'none';
       r.querySelector('#mNoteLbl').textContent = c.notePrompt || 'Kommentar';
+      // senast använda kommentarer för vald kategori som snabbval
+      const sug = recentNotes(5, c.id), box = r.querySelector('#mSug');
+      box.innerHTML = sug.map((s, i) => '<button type="button" class="chip" data-msug="' + i + '">' + esc(s) + '</button>').join('');
+      box.querySelectorAll('[data-msug]').forEach(b => b.onclick = () => { const inp = r.querySelector('#mNote'); inp.value = sug[b.dataset.msug]; inp.focus(); });
     };
     r.querySelector('#mCat').onchange = syncNote; syncNote();
     const del = r.querySelector('#mDel');
