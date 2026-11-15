@@ -22,6 +22,9 @@ Publiceras via GitHub Pages från branch `master`, rot. Ingen byggprocess, inga 
     - `work` = huvudkategori, räknas som arbetstid.
     - `sub` = delkategori under en `work` (`parent`), delar upp arbetstid. Bara två nivåer.
     - `other` = ej arbetstid, loggas men räknas inte.
+    - `note?: true` = kommentarsruta visas vid stopp/byte för kategorin; `notePrompt?` = stödtext
+      (etikett i rutan, t.ex. "Elevens namn"). Förslagen (senast använda) hämtas per kategori.
+      Posten får fältet `note` i `E`.
   - `schedules: [{ from: 'YYYY-MM-DD' | '', hours: [7 × { on, start, end }] }]` – **flexram**
     (tiden då stämplingar i jobbappen får ligga), index 0 = måndag. Sorterad på `from`,
     första har `from: ''` (= från början). Varje dag räknas med schemat som gällde då

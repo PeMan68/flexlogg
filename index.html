@@ -167,7 +167,7 @@ const DEFAULT_SETTINGS = {
   offDays: 'separate'
 };
 let S = normalizeSettings({});
-const APP_VERSION = 'v12';   // håll lika med CACHE i sw.js
+const APP_VERSION = 'v13';   // håll lika med CACHE i sw.js
 let E = [];
 let T = {};        // överfört till flexappen: dag -> {at, in, out, dur}
 let tab = 'stampla';
@@ -361,18 +361,19 @@ function press(catId) {
   SM = { kind: 'now' };
   commitEntries(...touched);
   render();
-  if (noteFor) askNote(noteFor);
+  if (noteFor && (cat(noteFor.cat) || {}).note) askNote(noteFor);
 }
-function recentNotes(n) {
+function recentNotes(n, catId) {
   const seen = [];
-  E.filter(e => e.note).sort((a, b) => (b.end ?? b.start) - (a.end ?? a.start)).forEach(e => { if (!seen.includes(e.note) && seen.length < n) seen.push(e.note); });
+  E.filter(e => e.note && e.cat === catId).sort((a, b) => (b.end ?? b.start) - (a.end ?? a.start)).forEach(e => { if (!seen.includes(e.note) && seen.length < n) seen.push(e.note); });
   return seen;
 }
 function askNote(e) {
   const c = cat(e.cat) || { name: '' };
-  const sug = recentNotes(5);
-  openModal('<h3>Kommentar <span class="mute small">– ' + esc(c.name) + '</span></h3>' +
-    '<input type="text" id="nTxt" maxlength="200" placeholder="t.ex. elevens namn (valfritt)" value="' + esc(e.note || '') + '">' +
+  const sug = recentNotes(5, e.cat);
+  openModal('<h3>' + esc(c.name) + '</h3>' +
+    '<label>' + esc(c.notePrompt || 'Kommentar') + ' <span class="small mute">(valfritt)</span></label>' +
+    '<input type="text" id="nTxt" maxlength="200" value="' + esc(e.note || '') + '">' +
     (sug.length ? '<div class="row" style="flex-wrap:wrap;gap:6px;margin-top:10px">' + sug.map((s, i) => '<button class="chip" data-sug="' + i + '">' + esc(s) + '</button>').join('') + '</div>' : '') +
     '<div class="row" style="margin-top:16px;gap:8px"><button class="btn sec" id="nSkip" style="margin-left:auto">Hoppa över</button><button class="btn" id="nSave">Spara</button></div>', r => {
     const inp = r.querySelector('#nTxt');
@@ -542,9 +543,16 @@ function editEntry(id) {
     '<label>Kategori</label><select id="mCat">' + opts + '</select>' +
     '<label>Start</label><input type="datetime-local" id="mStart" value="' + toInput(e.start) + '">' +
     '<label>Slut <span class="small">(tomt = pågår)</span></label><input type="datetime-local" id="mEnd" value="' + (e.end == null ? '' : toInput(e.end)) + '">' +
-    '<label>Kommentar</label><input type="text" id="mNote" maxlength="200" value="' + esc(e.note || '') + '">' +
+    '<div id="mNoteWrap"><label id="mNoteLbl">Kommentar</label><input type="text" id="mNote" maxlength="200" value="' + esc(e.note || '') + '"></div>' +
     '<div class="row" style="margin-top:16px;gap:8px">' + (isNew ? '' : '<button class="btn danger" id="mDel">Ta bort</button>') + '<button class="btn sec" id="mCancel" style="margin-left:auto">Avbryt</button><button class="btn" id="mSave">Spara</button></div>', r => {
     r.querySelector('#mCancel').onclick = closeModal;
+    // kommentarsfältet visas om kategorin använder kommentar (eller posten redan har en)
+    const syncNote = () => {
+      const c = cat(r.querySelector('#mCat').value) || {};
+      r.querySelector('#mNoteWrap').style.display = (c.note || r.querySelector('#mNote').value) ? '' : 'none';
+      r.querySelector('#mNoteLbl').textContent = c.notePrompt || 'Kommentar';
+    };
+    r.querySelector('#mCat').onchange = syncNote; syncNote();
     const del = r.querySelector('#mDel');
     if (del) del.onclick = () => {
       const dep = dependents(e);
@@ -845,7 +853,9 @@ function viewSettings() {
     h += '<div class="catrow" style="' + (c.archived ? 'opacity:.5' : '') + '"><input type="color" value="' + esc(c.color) + '" data-cc="' + i + '"><input type="text" value="' + esc(c.name) + '" data-cn="' + i + '"><div class="row"><button class="icon" data-up="' + i + '">↑</button><button class="icon" data-down="' + i + '">↓</button></div>' +
       '<div class="sub2"><select data-ct="' + i + '"><option value="work"' + (c.type === 'work' ? ' selected' : '') + '>Arbetstid</option><option value="sub"' + (c.type === 'sub' ? ' selected' : '') + '>Delkategori</option><option value="other"' + (c.type === 'other' ? ' selected' : '') + '>Ej arbetstid</option></select>' +
       (c.type === 'sub' ? '<select data-cp="' + i + '"><option value="">under …</option>' + works.map(wc => '<option value="' + esc(wc.id) + '"' + (wc.id === c.parent ? ' selected' : '') + '>under ' + esc(wc.name) + '</option>').join('') + '</select>' : '') +
-      (c.archived ? '<button class="chip" data-unarch="' + i + '">Återställ</button>' : '<button class="chip" data-del="' + i + '">' + (used ? 'Arkivera' : 'Ta bort') + '</button>') + '</div></div>';
+      '<label class="row" style="gap:6px"><input type="checkbox" data-cnote="' + i + '"' + (c.note ? ' checked' : '') + '> Kommentar</label>' +
+      (c.archived ? '<button class="chip" data-unarch="' + i + '">Återställ</button>' : '<button class="chip" data-del="' + i + '">' + (used ? 'Arkivera' : 'Ta bort') + '</button>') +
+      (c.note ? '<input type="text" data-cprompt="' + i + '" maxlength="40" placeholder="Stödtext, t.ex. Elevens namn" value="' + esc(c.notePrompt || '') + '" style="flex:1 1 100%">' : '') + '</div></div>';
   });
   h += '<button class="btn sec block" data-addcat style="margin-top:10px">+ Ny kategori</button>' +
     '<p class="help"><b>Arbetstid</b> räknas i flexen. <b>Delkategori</b> delar upp arbetstid under en huvudkategori – startar du den startas huvudkategorin också. <b>Ej arbetstid</b> loggas men räknas inte.</p></div>';
@@ -1052,6 +1062,8 @@ view.addEventListener('change', ev => {
     commitSettings(); return render();
   }
   if (d.cp != null) { S.categories[Number(d.cp)].parent = t.value; commitSettings(); return; }
+  if (d.cnote != null) { const c = S.categories[Number(d.cnote)]; if (t.checked) c.note = true; else delete c.note; commitSettings(); return render(); }
+  if (d.cprompt != null) { const c = S.categories[Number(d.cprompt)], v = t.value.trim(); if (v) c.notePrompt = v; else delete c.notePrompt; commitSettings(); return; }
   if (d.hon != null) return changeHours(d.hon, 'on', t.checked);
   if (d.hs != null) return changeHours(d.hs, 'start', t.value);
   if (d.he != null) return changeHours(d.he, 'end', t.value);
