@@ -1,5 +1,5 @@
 // Flexlogg service worker: appen fungerar utan nät och uppdateras i bakgrunden.
-const CACHE = 'flexlogg-v16';
+const CACHE = 'flexlogg-v17';
 const FILES = ['./', 'index.html', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'apple-touch-icon.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', e => {

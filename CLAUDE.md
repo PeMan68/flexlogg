@@ -32,11 +32,15 @@ Publiceras via GitHub Pages från branch `master`, rot. Ingen byggprocess, inga 
   - `lunch` – minuter som jobbappen drar (60). Läggs på utstämplingen i förslaget, men bara på dagar
     med mer arbetstid än `lunchOver` (min, förval 240 = 4 h). Kortare dagar får ingen rast.
   - `offDays` – används inte längre (finns kvar i gamla data, ignoreras). Helgtid fördelas bakåt, se Förslag.
+  - `transferDays` (förval 6) – jobbappen kan bara ändras så många dagar bakåt. `warnDays` (förval 2) –
+    varna när så många dagar (eller färre) återstår. `appBadge` (förval false) – appikonmärke, se Överföringsvarning.
   - `v` – settings-version (2), används för engångsmigreringar.
 - `E` (poster): `[{ id, cat, start, end|null, startedBy? }]`, ms-tidsstämplar. `end: null` = pågår.
   `startedBy` på en huvudkategoripost = id på delkategoriposten som startade den.
 - `T` (överfört till jobbappen): `{ 'YYYY-MM-DD' | 'sep-<måndag>': { at, in, out, dur } }`.
   Om aktuellt förslag skiljer sig från sparat visas "Ändrad efter överföring".
+  `{ at, handled: true }` = missad dag som användaren tryckt "Hanterad" på (state `handled`, räknas inte
+  som väntande). Poststate i `weekItems()`: `open | changed | done | handled`; `isPend()` = open/changed.
 
 ## Beteende (beslutat med användaren)
 - Start/stopp per knapp. Starta delkategori → startar huvudkategorin om den inte går.
@@ -60,6 +64,19 @@ Publiceras via GitHub Pages från branch `master`, rot. Ingen byggprocess, inga 
   "Utanför flexram" visas som virtuell huvudkategori med fördelning per delkategori.
   Ej arbetstid bara i timmar. Stapeldiagram: per vecka (år/halvår), per dag (månad/vecka),
   läge "Inom/utanför" eller "Per kategori".
+
+## Överföringsvarning (beslutat med användaren)
+- Jobbappen kan bara ändras `transferDays` dagar bakåt (idag 18/11, N=6 → äldsta 12/11). Sista dag att
+  föra över dag D = D + N. "Ryms inte i veckan" räknas som veckans söndag. `itemInfo()` ger nivå.
+- Utgår från äldsta ej överförda (open/changed) dag i förfluten tid (`pendingOverview()`).
+  Nivåer: `calm` (> `warnDays` kvar), `soon` (≤ `warnDays`, orange), `last` (sista dagen, röd), `late` (för sent, röd).
+- Indikatorn uppe till höger (`setSync()`): Kan inte spara > överföring (soon/last/late) > säkerhetskopia >
+  lugn överföring ("Överför … senast …"). Tryckbar → Flex-veckan med äldsta dagen.
+- Röd prick med antal väntande poster på Flex-fliken. Flex-kortet visar sista dag; varje ej överförd dag har
+  etiketten "senast <dag>" färgad efter nivå.
+- Missade dagar (`late`) ligger kvar röda tills användaren trycker "Hanterad" (sparas i `T`, alternativ A).
+- Appikonmärke: `navigator.setAppBadge(antal)` bakom `S.appBadge`; ber om notisbehörighet när den slås på,
+  faller tyst tillbaka om det inte stöds. Indikator/märke räknas om varje minut och vid synlighetsbyte.
 
 ## Flikar
 Stämpla · Logg (redigera/lägg till/ta bort poster per dag) · Flex (veckoförslag, kopiera,
