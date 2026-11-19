@@ -31,6 +31,11 @@ Publiceras via GitHub Pages från branch `master`, rot. Ingen byggprocess, inga 
     (`hoursFor(day)`), så historiken ändras inte när flexramen ändras.
   - `lunch` – minuter som jobbappen drar (60). Läggs på utstämplingen i förslaget, men bara på dagar
     med mer arbetstid än `lunchOver` (min, förval 240 = 4 h). Kortare dagar får ingen rast.
+  - `daysOff: [{ from, to, label }]` – lediga dagar (semester m.m.), datumintervall. `hoursFor(day)` ger
+    `on: false` för dem, så de behandlas exakt som helg (ingen flexram, tid fördelas bakåt, "utanför flexram").
+    Enstaka dag växlas med knappen "Ledig" i Logg (`setDayOff()` delar intervall), perioder i Inställningar.
+    I Flex blir varje ledig dag en post `{ off: true }` (utan tidsförslag) som markeras "ledighet registrerad"
+    i flexsystemet (`T[dag] = { at, off: true }`); den räknas som väntande/varnas på som andra dagar.
   - `offDays` – används inte längre (finns kvar i gamla data, ignoreras). Helgtid fördelas bakåt, se Förslag.
   - `transferDays` (förval 6) – jobbappen kan bara ändras så många dagar bakåt. `warnDays` (förval 2) –
     varna när så många dagar (eller färre) återstår. `appBadge` (förval false) – appikonmärke, se Överföringsvarning.

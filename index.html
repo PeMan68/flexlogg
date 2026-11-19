@@ -172,10 +172,11 @@ const DEFAULT_SETTINGS = {
   transferDays: 6,  // jobbappen kan bara ändras så många dagar bakåt
   warnDays: 2,      // varna när det är så här många dagar kvar (eller färre)
   appBadge: false,  // antal väntande dagar som märke på appikonen
+  daysOff: [],      // lediga dagar (semester m.m.): [{ from, to, label }], behandlas som helg
   offDays: 'separate'
 };
 let S = normalizeSettings({});
-const APP_VERSION = 'v17';   // håll lika med CACHE i sw.js
+const APP_VERSION = 'v18';   // håll lika med CACHE i sw.js
 let E = [];
 let T = {};        // överfört till flexappen: dag -> {at, in, out, dur}
 let tab = 'stampla';
@@ -200,10 +201,25 @@ function normalizeSettings(s) {
   o.transferDays = Math.max(1, Math.min(60, Math.round(Number(o.transferDays)) || 6));   // jobbappen kan ändras så många dagar bakåt
   o.warnDays = Math.max(0, Math.min(30, Math.round(Number(o.warnDays)))); if (isNaN(o.warnDays)) o.warnDays = 2;
   o.appBadge = !!o.appBadge;
+  o.daysOff = (Array.isArray(o.daysOff) ? o.daysOff : []).filter(x => x && /^\d{4}-\d\d-\d\d$/.test(x.from) && /^\d{4}-\d\d-\d\d$/.test(x.to) && x.from <= x.to)
+    .map(x => ({ from: x.from, to: x.to, label: String(x.label || '').slice(0, 40) })).sort((a, b) => a.from.localeCompare(b.from));
   return o;
 }
 function schedIdxFor(day) { const k = dk(day); let j = 0; S.schedules.forEach((sc, i) => { if ((sc.from || '') <= k) j = i; }); return j; }
-const hoursFor = day => S.schedules[schedIdxFor(day)].hours[wdIdx(day)];
+/* Lediga dagar (semester m.m.) behandlas som helg: ingen flexram. */
+const dayOff = day => { const k = dk(day); return S.daysOff.find(x => x.from <= k && k <= x.to) || null; };
+const hoursFor = day => dayOff(day) ? { on: false, start: '00:00', end: '00:00' } : S.schedules[schedIdxFor(day)].hours[wdIdx(day)];
+function setDayOff(day, off) {
+  const k = dk(day), out = [];
+  S.daysOff.forEach(x => {
+    if (!(x.from <= k && k <= x.to)) { out.push(x); return; }
+    // dela intervallet runt dagen
+    if (x.from < k) out.push({ from: x.from, to: dk(addDays(day, -1)), label: x.label });
+    if (x.to > k) out.push({ from: dk(addDays(day, 1)), to: x.to, label: x.label });
+  });
+  if (off) out.push({ from: k, to: k, label: '' });
+  S.daysOff = out.sort((a, b) => a.from.localeCompare(b.from));
+}
 const cat = id => S.categories.find(c => c.id === id);
 const isWork = c => !!c && (c.type === 'work' || c.type === 'sub');
 const activeOf = id => E.find(e => e.cat === id && e.end == null);
@@ -521,7 +537,7 @@ function viewLog() {
   h += '<div class="card"><div class="row between"><span class="mute">Arbetstid</span><b>' + fmtDur(total) + '</b></div><div class="row between small"><span class="mute">varav utanför normaltid</span><span>' + fmtDur(outside) + '</span></div></div>';
   days.forEach((s, i) => {
     const day = s.day, list = s.entries.slice().sort((a, b) => a.start - b.start);
-    h += '<div class="row between" style="margin:16px 2px 6px"><b>' + WDL[i] + (day === today ? ' <span class="small mute">(idag)</span>' : '') + '</b><span class="small mute">' + (T[dk(day)] ? '<span style="color:var(--ok)">✓ överförd</span> ' : '') + (s.total ? fmtDur(s.total) : '') + ' <button class="chip" data-add="' + day + '">+</button></span></div>';
+    h += '<div class="row between" style="margin:16px 2px 6px"><b>' + WDL[i] + (day === today ? ' <span class="small mute">(idag)</span>' : '') + '</b><span class="small mute">' + (T[dk(day)] ? '<span style="color:var(--ok)">✓ överförd</span> ' : '') + (dayOff(day) ? '<span class="tag">Ledig</span> ' : '') + (s.total ? fmtDur(s.total) : '') + ' <button class="chip" data-dayoff="' + day + '">' + (dayOff(day) ? 'Ta bort ledig' : 'Ledig') + '</button> <button class="chip" data-add="' + day + '">+</button></span></div>';
     if (!list.length) return;
     h += '<div class="card">';
     list.forEach(e => {
@@ -633,8 +649,9 @@ function editEntry(id) {
 function weekItems(w, mon) {
   const items = [];
   w.days.forEach((s, i) => {
-    const p = w.props[i], key = dk(s.day);
-    if (p) items.push({ key, i, label: WD[i] + ' ' + dm(s.day), cur: { in: p.in, out: p.out, dur: p.dur } });
+    const p = w.props[i], key = dk(s.day), off = dayOff(s.day);
+    if (off) items.push({ key, i, off: true, label: WD[i] + ' ' + dm(s.day), cur: { off: true } });
+    else if (p) items.push({ key, i, label: WD[i] + ' ' + dm(s.day), cur: { in: p.in, out: p.out, dur: p.dur } });
     else if (T[key]) items.push({ key, i, label: WD[i] + ' ' + dm(s.day), cur: null });
   });
   const sk = 'sep-' + dk(mon);
@@ -681,6 +698,7 @@ function pendingOverview() {
   return count ? { count, first: oldest.mon, oldest } : null;
 }
 function itemLine(it) {
+  if (it.off) return it.label + ': ledig dag – registrera ledighet';
   if (!it.cur) return it.label + ': ingen tid längre';
   if (it.i < 0) return 'Ryms inte i veckan, lägg på annan vecka: ' + fmtDur(it.cur.dur);
   return it.label + ': In ' + clock(it.cur.in) + '  Ut ' + clock(it.cur.out) + '  (' + fmtDur(it.cur.dur) + ')';
@@ -699,9 +717,9 @@ function trBadge(it) {
   const inf = isPend(it) ? itemInfo(it) : null;
   const lbl = inf ? '<span class="tag" style="color:' + LEVEL_COLOR[inf.level] + (inf.level === 'calm' ? '' : ';font-weight:600') + '">' + levelText(inf, true) + '</span> ' : '';
   const handled = inf && inf.level === 'late' ? ' <button class="copy" data-handled="' + it.key + '">Hanterad</button>' : '';
-  if (it.state === 'open') return '<div style="margin-top:6px">' + lbl + '<button class="copy" data-mark="' + it.key + '">Markera överförd</button>' + handled + '</div>';
+  if (it.state === 'open') return '<div style="margin-top:6px">' + lbl + '<button class="copy" data-mark="' + it.key + '">' + (it.off ? 'Markera ledighet registrerad' : 'Markera överförd') + '</button>' + handled + '</div>';
   if (it.state === 'handled') return '<div style="margin-top:6px"><span class="tag">✓ Hanterad ' + dm(t.at) + '</span> <button class="copy" data-unmark="' + it.key + '">Ångra</button></div>';
-  let h = '<span class="tag" style="color:' + (it.state === 'done' ? 'var(--ok)' : 'var(--bad)') + '">' + (it.state === 'done' ? '✓ Överförd ' + dm(t.at) : '⚠ Ändrad efter överföring') + '</span>';
+  let h = '<span class="tag" style="color:' + (it.state === 'done' ? 'var(--ok)' : 'var(--bad)') + '">' + (it.state === 'done' ? (it.off ? '✓ Ledighet registrerad ' : '✓ Överförd ') + dm(t.at) : '⚠ Ändrad efter överföring') + '</span>';
   if (it.state === 'changed') {
     h += ' ' + lbl;
     h += '<div class="small" style="color:var(--bad);margin-top:4px">Överfört då: ' + (t.in != null ? 'In ' + clock(t.in) + ' Ut ' + clock(t.out) + ' (' + fmtDur(t.dur) + ')' : fmtDur(t.dur || 0)) + '</div>';
@@ -734,6 +752,8 @@ function viewFlex() {
     const parts = Object.entries(s.byCat).filter(([id]) => cat(id) && cat(id).type !== 'work').map(([id, t]) => '<span class="tag">' + esc(cat(id).name) + ' ' + fmtDur(t) + '</span>').join(' ');
     const done = it && (it.state === 'done' || it.state === 'handled');
     h += '<div class="day"' + (done ? ' style="opacity:.6"' : '') + '><div class="row between"><b>' + WDL[i] + ' ' + dm(s.day) + '</b>' + (p ? '<button class="copy" data-copyday="' + i + '">Kopiera</button>' : '') + '</div>';
+    const off = dayOff(s.day);
+    if (off) h += '<div class="prop" style="color:var(--mute)">Ledig dag' + (off.label ? ' – ' + esc(off.label) : '') + '</div><div class="small mute">Ska registreras som ledighet i flexsystemet.</div>';
     if (p) h += '<div class="prop">In ' + clock(p.in) + ' &nbsp;→&nbsp; Ut ' + clock(p.out) + ' <span class="mute small">(' + fmtDur(p.dur) + (p.lunch ? ' + ' + p.lunch / MIN + ' min rast' : '') + ')</span></div>';
     else if (s.total) h += '<div class="small" style="color:var(--warn)">Ingen normal arbetstid denna dag – tiden läggs på tidigare dagar</div>';
     h += '<div class="small mute">Loggat ' + fmtDur(s.total) + (s.outside ? ', varav ' + fmtDur(s.outside) + ' utanför normaltid' : '') + (w.recv[i] ? ' · +' + fmtDur(w.recv[i]) + ' från senare dag/helg' : '') + '</div>';
@@ -948,6 +968,13 @@ function viewSettings() {
   }
   h += '<button class="btn sec block" data-addsched style="margin-top:6px">+ Nytt schema från ett datum</button>' +
     '<p class="help">Varje dag räknas med det schema som gällde då, så historiken ändras inte när du byter schema. Ändrar du i ett schema som redan har loggade dagar får du välja om ändringen ska gälla från ett datum eller rätta hela perioden.</p></div>';
+  h += '<div class="sectionlbl">Lediga dagar</div><div class="card">';
+  S.daysOff.forEach((x, i) => {
+    h += '<div class="sched" style="' + (i ? 'border-top:1px solid var(--line);padding-top:12px' : '') + '"><div class="row" style="gap:6px;flex-wrap:wrap"><input type="date" data-offfrom="' + i + '" value="' + esc(x.from) + '"><span class="mute">–</span><input type="date" data-offto="' + i + '" value="' + esc(x.to) + '"></div>' +
+      '<div class="row" style="gap:6px;margin-top:6px"><input type="text" data-offlabel="' + i + '" maxlength="40" placeholder="Namn, t.ex. Semester" value="' + esc(x.label) + '" style="flex:1"><button class="chip" data-deloff="' + i + '">Ta bort</button></div></div>';
+  });
+  h += (S.daysOff.length ? '' : '<div class="empty" style="padding:6px 0 12px">Inga lediga dagar.</div>') + '<button class="btn sec block" data-addoff>+ Ledig period</button>' +
+    '<p class="help">Semester och andra lediga dagar behandlas som helg: ingen normal arbetstid, och tid du ändå loggar de dagarna fördelas bakåt. De visas i Flex som "Ledig dag" som du markerar när ledigheten är registrerad i flexsystemet. En enstaka dag kan också markeras som ledig i Logg.</p></div>';
   h += '<div class="sectionlbl">Förslag till flexappen</div><div class="card">' +
     '<div class="row between"><span>Rast att lägga till (min)</span><input type="number" min="0" step="5" style="width:90px" data-lunch value="' + S.lunch + '"></div>' +
     '<div class="row between" style="margin-top:10px"><span>…men bara om arbetstiden är över (min)</span><input type="number" min="0" step="15" style="width:90px" data-lunchover value="' + S.lunchOver + '"></div>' +
@@ -1030,7 +1057,7 @@ $('#nav').addEventListener('click', ev => {
 });
 const view = $('#view');
 view.addEventListener('click', ev => {
-  const t = ev.target.closest('[data-press],[data-handled],[data-chip],[data-logweek],[data-edit],[data-add],[data-week],[data-copyday],[data-copyweek],[data-mark],[data-unmark],[data-markall],[data-gotoweek],[data-up],[data-down],[data-del],[data-unarch],[data-addcat],[data-csv],[data-savebk],[data-restore],[data-addsched],[data-sdel],[data-skind],[data-sstep],[data-cmode],[data-bar]');
+  const t = ev.target.closest('[data-press],[data-handled],[data-dayoff],[data-addoff],[data-deloff],[data-chip],[data-logweek],[data-edit],[data-add],[data-week],[data-copyday],[data-copyweek],[data-mark],[data-unmark],[data-markall],[data-gotoweek],[data-up],[data-down],[data-del],[data-unarch],[data-addcat],[data-csv],[data-savebk],[data-restore],[data-addsched],[data-sdel],[data-skind],[data-sstep],[data-cmode],[data-bar]');
   if (!t) return;
   const d = t.dataset;
   if (d.press) return press(d.press);
@@ -1051,6 +1078,16 @@ view.addEventListener('click', ev => {
     if (d.unmark) delete T[d.unmark];
     else its.filter(it => it.cur && (d.markall != null ? isPend(it) : it.key === d.mark)).forEach(markItem);
     commit(); return render();
+  }
+  if (d.dayoff) { const day = Number(d.dayoff); setDayOff(day, !dayOff(day)); commitSettings(); return render(); }
+  if (d.addoff != null) {
+    const k = dk(Date.now());
+    S.daysOff.push({ from: k, to: k, label: '' }); S.daysOff.sort((a, b) => a.from.localeCompare(b.from));
+    commitSettings(); return render();
+  }
+  if (d.deloff != null) {
+    if (!t.dataset.sure) { t.dataset.sure = 1; t.textContent = 'Säker?'; return; }
+    S.daysOff.splice(Number(d.deloff), 1); commitSettings(); return render();
   }
   if (d.handled) { T[d.handled] = { at: Date.now(), handled: true }; commit(); return render(); }
   if (d.gotoweek) { flexWeek = Number(d.gotoweek); render(); window.scrollTo(0, 0); return; }
@@ -1150,6 +1187,15 @@ view.addEventListener('change', ev => {
     const j = Number(d.sfrom), v = t.value;
     if (!v || S.schedules.some((x, k) => k !== j && x.from === v)) { toast('Ogiltigt eller upptaget datum.'); return render(); }
     S.schedules[j].from = v; S.schedules.sort((a, b) => (a.from || '').localeCompare(b.from || '')); S.schedules[0].from = '';
+    commitSettings(); return render();
+  }
+  if (d.offfrom != null || d.offto != null || d.offlabel != null) {
+    const i = Number(d.offfrom ?? d.offto ?? d.offlabel), x = S.daysOff[i];
+    if (!x) return;
+    if (d.offlabel != null) { x.label = t.value.trim().slice(0, 40); commitSettings(); return; }
+    if (!t.value) { toast('Välj ett datum.'); return render(); }
+    if (d.offfrom != null) { x.from = t.value; if (x.to < x.from) x.to = x.from; } else { x.to = t.value; if (x.from > x.to) x.from = x.to; }
+    S.daysOff.sort((a, b) => a.from.localeCompare(b.from));
     commitSettings(); return render();
   }
   if (d.tdays != null) { S.transferDays = Math.max(1, Math.min(60, Math.round(Number(t.value)) || 6)); commitSettings(); return render(); }
