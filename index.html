@@ -176,7 +176,7 @@ const DEFAULT_SETTINGS = {
   offDays: 'separate'
 };
 let S = normalizeSettings({});
-const APP_VERSION = 'v18';   // håll lika med CACHE i sw.js
+const APP_VERSION = 'v19';   // håll lika med CACHE i sw.js
 let E = [];
 let T = {};        // överfört till flexappen: dag -> {at, in, out, dur}
 let tab = 'stampla';
@@ -810,6 +810,9 @@ function computeStats(p0, p1) {
   const R = { work: z(), groups: groups.map(g => ({ g, all: z(), subs: g.subs.map(() => z()), rest: z() })), other: {}, buckets: [] };
   const bucketed = statKind === 'year' || statKind === 'half';
   const bmap = new Map();
+  // delsummor per kommentar: kategorier med kommentarsruta eller poster som har kommentar
+  const noteCats = S.categories.filter(c => c.note || E.some(e => e.note && e.cat === c.id));
+  R.notes = {};
   for (let day = dayStart(p0); day < p1; day = addDays(day, 1)) {
     const d1 = addDays(day, 1);
     const rel = pre.filter(e => e.start < d1 && (e.end ?? now) > day);
@@ -837,15 +840,47 @@ function computeStats(p0, p1) {
       add(G.rest, rest); b.seg['rest:' + G.g.main.id] = (b.seg['rest:' + G.g.main.id] || 0) + rest.tot;
     });
     S.categories.filter(c => c.type === 'other').forEach(c => { const m = measure(ivRaw([c.id])); if (m.tot) R.other[c.id] = (R.other[c.id] || 0) + m.tot; });
+    noteCats.forEach(c => {
+      const grp = new Map();
+      rel.filter(e => e.cat === c.id).forEach(e => {
+        const k = noteKey(e.note);
+        if (!grp.has(k)) grp.set(k, { label: '', ts: -1, iv: [] });
+        const g = grp.get(k); g.iv.push([e.start, e.end ?? now]);
+        if (k && e.start >= g.ts) { g.ts = e.start; g.label = String(e.note).trim().replace(/\s+/g, ' '); }
+      });
+      grp.forEach((g, k) => {
+        const iv = merge(clip(g.iv, day, d1)), m = measure(c.type === 'other' ? iv : subtractIv(iv, off));
+        if (!m.tot) return;
+        const mp = R.notes[c.id] || (R.notes[c.id] = new Map());
+        const cur = mp.get(k) || { label: g.label, ts: -1, tot: 0 };
+        cur.tot += m.tot; if (g.ts >= cur.ts) { cur.ts = g.ts; cur.label = g.label; }
+        mp.set(k, cur);
+      });
+    });
   }
   return R;
 }
 const pct = (a, b) => b > 0 ? Math.round(100 * a / b) : 0;
-function srow(name, color, val, base, outVal, indent) {
+/* Kommentarer jämförs utan hänsyn till versaler och extra mellanslag; '' = utan kommentar. */
+const noteKey = n => String(n || '').trim().replace(/\s+/g, ' ').toLocaleLowerCase('sv');
+let statOpen = new Set();   // kategorier vars kommentarer är utfällda i Statistik
+function noteBlock(R, c, color) {
+  const m = R.notes[c.id];
+  if (!m || ![...m.keys()].some(k => k !== '')) return '';
+  const rows = [...m.entries()].sort((a, b) => (a[0] === '') - (b[0] === '') || b[1].tot - a[1].tot);
+  const base = rows.reduce((a, [, v]) => a + v.tot, 0), open = statOpen.has(c.id);
+  let h = '<div style="margin-top:6px"><button class="copy" data-notes="' + esc(c.id) + '">' + (open ? '▾' : '▸') + ' Kommentarer (' + (rows.length - (m.has('') ? 1 : 0)) + ')</button></div>';
+  if (open) h += '<div style="margin:6px 0 2px 14px">' + rows.map(([k, v]) => {
+    const p = pct(v.tot, base);
+    return '<div class="srow"><div class="row between"><span' + (k ? '' : ' class="mute"') + '>' + (k ? esc(v.label) : 'Utan kommentar') + '</span><span class="num">' + fmtDur(v.tot) + ' <b>' + p + ' %</b></span></div><div class="bar"><i style="width:' + Math.min(100, p) + '%;background:' + esc(color) + '"></i></div></div>';
+  }).join('') + '</div>';
+  return h;
+}
+function srow(name, color, val, base, outVal, indent, extra) {
   const p = pct(val, base);
   return '<div class="srow"><div class="row between"><span class="row">' + (indent ? '<span class="mute">↳</span>' : '') + '<span class="dot" style="background:' + esc(color) + '"></span>' + esc(name) + '</span><span class="num">' + fmtDur(val) + ' <b>' + p + ' %</b></span></div>' +
     '<div class="bar"><i style="width:' + Math.min(100, p) + '%;background:' + esc(color) + '"></i></div>' +
-    (outVal != null && val > 0 ? '<div class="small mute">varav ' + pct(outVal, val) + ' % utanför normaltid (' + fmtDur(outVal) + ')</div>' : '') + '</div>';
+    (outVal != null && val > 0 ? '<div class="small mute">varav ' + pct(outVal, val) + ' % utanför normaltid (' + fmtDur(outVal) + ')</div>' : '') + (extra || '') + '</div>';
 }
 function chartSegments(R) {
   if (chartMode === 'inout') return [{ key: 'in', name: 'Inom normaltid', color: 'var(--in)' }, { key: 'out', name: 'Utanför normaltid', color: 'var(--out)' }];
@@ -910,10 +945,10 @@ function viewStat() {
   R.groups.forEach(G => {
     if (!G.all.tot) return;
     h += '<div class="card"><div class="row between"><b class="row"><span class="dot" style="background:' + esc(G.g.main.color) + '"></span>' + esc(G.g.main.name) + '</b><b class="num">' + fmtDur(G.all.tot) + '</b></div>' +
-      '<div class="small mute">varav ' + fmtDur(G.all.out) + ' utanför normaltid (' + pct(G.all.out, G.all.tot) + ' %)</div>';
+      '<div class="small mute">varav ' + fmtDur(G.all.out) + ' utanför normaltid (' + pct(G.all.out, G.all.tot) + ' %)</div>' + noteBlock(R, G.g.main, G.g.main.color);
     if (G.g.subs.length) {
       h += '<div style="margin-top:6px">';
-      G.g.subs.forEach((sc, k) => { if (G.subs[k].tot) h += srow(sc.name, sc.color, G.subs[k].tot, G.all.tot, G.subs[k].out, true); });
+      G.g.subs.forEach((sc, k) => { if (G.subs[k].tot) h += srow(sc.name, sc.color, G.subs[k].tot, G.all.tot, G.subs[k].out, true, noteBlock(R, sc, sc.color)); });
       if (G.rest.tot > 0) h += srow('Övrigt', G.g.main.color, G.rest.tot, G.all.tot, G.rest.out, true);
       h += '</div>';
     }
@@ -933,7 +968,7 @@ function viewStat() {
   }
   // ej arbetstid
   const oth = S.categories.filter(c => R.other[c.id]);
-  if (oth.length) h += '<div class="card"><b>Ej arbetstid</b><div style="margin-top:6px">' + oth.map(c => '<div class="row between" style="padding:5px 0"><span class="row"><span class="dot" style="background:' + esc(c.color) + '"></span>' + esc(c.name) + '</span><span class="num">' + fmtDur(R.other[c.id]) + '</span></div>').join('') + '</div></div>';
+  if (oth.length) h += '<div class="card"><b>Ej arbetstid</b><div style="margin-top:6px">' + oth.map(c => '<div style="padding:5px 0"><div class="row between"><span class="row"><span class="dot" style="background:' + esc(c.color) + '"></span>' + esc(c.name) + '</span><span class="num">' + fmtDur(R.other[c.id]) + '</span></div>' + noteBlock(R, c, c.color) + '</div>').join('') + '</div></div>';
   return h;
 }
 
@@ -1057,7 +1092,7 @@ $('#nav').addEventListener('click', ev => {
 });
 const view = $('#view');
 view.addEventListener('click', ev => {
-  const t = ev.target.closest('[data-press],[data-handled],[data-dayoff],[data-addoff],[data-deloff],[data-chip],[data-logweek],[data-edit],[data-add],[data-week],[data-copyday],[data-copyweek],[data-mark],[data-unmark],[data-markall],[data-gotoweek],[data-up],[data-down],[data-del],[data-unarch],[data-addcat],[data-csv],[data-savebk],[data-restore],[data-addsched],[data-sdel],[data-skind],[data-sstep],[data-cmode],[data-bar]');
+  const t = ev.target.closest('[data-press],[data-notes],[data-handled],[data-dayoff],[data-addoff],[data-deloff],[data-chip],[data-logweek],[data-edit],[data-add],[data-week],[data-copyday],[data-copyweek],[data-mark],[data-unmark],[data-markall],[data-gotoweek],[data-up],[data-down],[data-del],[data-unarch],[data-addcat],[data-csv],[data-savebk],[data-restore],[data-addsched],[data-sdel],[data-skind],[data-sstep],[data-cmode],[data-bar]');
   if (!t) return;
   const d = t.dataset;
   if (d.press) return press(d.press);
@@ -1079,6 +1114,7 @@ view.addEventListener('click', ev => {
     else its.filter(it => it.cur && (d.markall != null ? isPend(it) : it.key === d.mark)).forEach(markItem);
     commit(); return render();
   }
+  if (d.notes) { if (statOpen.has(d.notes)) statOpen.delete(d.notes); else statOpen.add(d.notes); return render(); }
   if (d.dayoff) { const day = Number(d.dayoff); setDayOff(day, !dayOff(day)); commitSettings(); return render(); }
   if (d.addoff != null) {
     const k = dk(Date.now());
@@ -1120,12 +1156,12 @@ view.addEventListener('click', ev => {
     return;
   }
   if (d.csv != null) {
-    const rows = [['datum', 'kategori', 'typ', 'start', 'slut', 'minuter'].join(';')];
+    const rows = [['datum', 'kategori', 'typ', 'start', 'slut', 'minuter', 'kommentar'].join(';')];
     const tn = { work: 'arbetstid', sub: 'delkategori', other: 'ej arbetstid' };
     E.slice().sort((a, b) => a.start - b.start).forEach(e => {
       const c = cat(e.cat) || { name: '?', type: '' };
       const ds = new Date(e.start);
-      rows.push([ds.getFullYear() + '-' + pad(ds.getMonth() + 1) + '-' + pad(ds.getDate()), c.name, tn[c.type] || '', clock(e.start), e.end == null ? '' : (dayStart(e.end) === dayStart(e.start) ? '' : dm(e.end) + ' ') + clock(e.end), e.end == null ? '' : Math.round((e.end - e.start) / MIN)].join(';'));
+      rows.push([ds.getFullYear() + '-' + pad(ds.getMonth() + 1) + '-' + pad(ds.getDate()), c.name, tn[c.type] || '', clock(e.start), e.end == null ? '' : (dayStart(e.end) === dayStart(e.start) ? '' : dm(e.end) + ' ') + clock(e.end), e.end == null ? '' : Math.round((e.end - e.start) / MIN), String(e.note || '').replace(/[;\r\n]+/g, ' ').trim()].join(';'));
     });
     return copyText(rows.join('\n'));
   }

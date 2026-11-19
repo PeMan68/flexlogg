@@ -67,7 +67,10 @@ Publiceras via GitHub Pages från branch `master`, rot. Ingen byggprocess, inga 
 - Användaren loggar sin faktiska lunch i Flexlogg (stoppar Arbete) och stämplar inte lunch i jobbappen.
 - Statistik: vecka/månad/halvår/år. Delkategorier i % av sin huvudkategori + rad "Övrigt".
   "Utanför flexram" visas som virtuell huvudkategori med fördelning per delkategori.
-  Ej arbetstid bara i timmar. Stapeldiagram: per vecka (år/halvår), per dag (månad/vecka),
+  Ej arbetstid bara i timmar. Delsumma per kommentar: kategorier med kommentarer får en utfällbar rad
+  "Kommentarer (n)" (`noteBlock()`, `R.notes` i `computeStats()`) med tid och % av kategorins tid, plus
+  "Utan kommentar". Kommentarer slås ihop oberoende av versaler/extra mellanslag (`noteKey()`); visad stavning =
+  senaste. Samma avdrag för ej arbetstid som övrig statistik. CSV-exporten har kolumnen `kommentar`. Stapeldiagram: per vecka (år/halvår), per dag (månad/vecka),
   läge "Inom/utanför" eller "Per kategori".
 
 ## Överföringsvarning (beslutat med användaren)
