@@ -176,7 +176,7 @@ const DEFAULT_SETTINGS = {
   offDays: 'separate'
 };
 let S = normalizeSettings({});
-const APP_VERSION = 'v19';   // håll lika med CACHE i sw.js
+const APP_VERSION = 'v20';   // håll lika med CACHE i sw.js
 let E = [];
 let T = {};        // överfört till flexappen: dag -> {at, in, out, dur}
 let tab = 'stampla';
@@ -749,7 +749,6 @@ function viewFlex() {
     const p = w.props[i], it = byKey[dk(s.day)];
     if (!s.total && !p && !it) return;
     any = true;
-    const parts = Object.entries(s.byCat).filter(([id]) => cat(id) && cat(id).type !== 'work').map(([id, t]) => '<span class="tag">' + esc(cat(id).name) + ' ' + fmtDur(t) + '</span>').join(' ');
     const done = it && (it.state === 'done' || it.state === 'handled');
     h += '<div class="day"' + (done ? ' style="opacity:.6"' : '') + '><div class="row between"><b>' + WDL[i] + ' ' + dm(s.day) + '</b>' + (p ? '<button class="copy" data-copyday="' + i + '">Kopiera</button>' : '') + '</div>';
     const off = dayOff(s.day);
@@ -759,7 +758,6 @@ function viewFlex() {
     h += '<div class="small mute">Loggat ' + fmtDur(s.total) + (s.outside ? ', varav ' + fmtDur(s.outside) + ' utanför normaltid' : '') + (w.recv[i] ? ' · +' + fmtDur(w.recv[i]) + ' från senare dag/helg' : '') + '</div>';
     if (w.out[i] >= MIN) h += '<div class="small" style="color:var(--warn)">' + fmtDur(w.out[i]) + ' ryms inte – flyttas till dagen före</div>';
     if (p && p.over) h += '<div class="small" style="color:var(--bad)">Ryms inte inom normaltid: ' + fmtDur(p.over) + ' går över</div>';
-    if (parts) h += '<div style="margin-top:4px;display:flex;gap:4px;flex-wrap:wrap">' + parts + '</div>';
     if (it) h += trBadge(it);
     h += '</div>';
   });
