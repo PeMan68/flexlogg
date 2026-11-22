@@ -86,6 +86,16 @@ Publiceras via GitHub Pages från branch `master`, rot. Ingen byggprocess, inga 
 - Appikonmärke: `navigator.setAppBadge(antal)` bakom `S.appBadge`; ber om notisbehörighet när den slås på,
   faller tyst tillbaka om det inte stöds. Indikator/märke räknas om varje minut och vid synlighetsbyte.
 
+## Flexsaldo (max/min, uppskjuten tid)
+- `S.flex = { on, max, min, norm, floor, margin, defer, anchor: { date, bal, pot } }` (alla tider i minuter; max/min kan vara negativa).
+  `anchor` = saldot jobbappen visar t.o.m. `date` (användaren synkar via `openFlexSync()`).
+- Saldo i jobbappen = ankare + (överförd `T[dag].dur` − normtid) per dag efter ankardatumet. Prognos = även ej överförda förslag.
+  Normtid = `flex.norm` på dagar med flexram (`hoursFor(dag).on`), annars 0. Dagar utan förslag och utan överföring påverkar inte saldot.
+- `weekPlan(mon)` (använd den i stället för `weekData` i vyer) kör `calcWeek()` kronologiskt från ankaret: dagens förslag kapas så att saldot
+  inte går över max, mellanskillnaden läggs i potten som släpps ut senare när saldot är under max (begränsat av flexramen).
+  Golv: stämplad tid sänks aldrig under `flex.floor` (eller dagens tid om den är kortare). Överförda dagar fryses via `T[dag].base` (loggad tid vid överföring).
+- Nivåer (`flexLevel`): over/under (röd), at/near/nearmin (orange). Visas i indikatorn (efter överföringsvarning, före säkerhetskopia) och i saldokortet överst i Flex.
+
 ## Flikar
 Stämpla · Logg (redigera/lägg till/ta bort poster per dag) · Flex (veckoförslag, kopiera,
 markera överfört) · Statistik · Inställningar (kategorier, flexram-scheman, lunch, data).

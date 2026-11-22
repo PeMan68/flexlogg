@@ -173,10 +173,12 @@ const DEFAULT_SETTINGS = {
   warnDays: 2,      // varna när det är så här många dagar kvar (eller färre)
   appBadge: false,  // antal väntande dagar som märke på appikonen
   daysOff: [],      // lediga dagar (semester m.m.): [{ from, to, label }], behandlas som helg
-  offDays: 'separate'
+  offDays: 'separate',
+  // flexsaldo (minuter): gränser, normtid per arbetsdag, golv för dagens stämplade tid, ankare = saldo i jobbappen
+  flex: { on: false, max: 2400, min: -1200, norm: 480, floor: 360, margin: 300, defer: true, anchor: null }
 };
 let S = normalizeSettings({});
-const APP_VERSION = 'v20';   // håll lika med CACHE i sw.js
+const APP_VERSION = 'v21';   // håll lika med CACHE i sw.js
 let E = [];
 let T = {};        // överfört till flexappen: dag -> {at, in, out, dur}
 let tab = 'stampla';
@@ -203,6 +205,10 @@ function normalizeSettings(s) {
   o.appBadge = !!o.appBadge;
   o.daysOff = (Array.isArray(o.daysOff) ? o.daysOff : []).filter(x => x && /^\d{4}-\d\d-\d\d$/.test(x.from) && /^\d{4}-\d\d-\d\d$/.test(x.to) && x.from <= x.to)
     .map(x => ({ from: x.from, to: x.to, label: String(x.label || '').slice(0, 40) })).sort((a, b) => a.from.localeCompare(b.from));
+  const f = Object.assign({}, DEFAULT_SETTINGS.flex, o.flex || {}), fn = (v, d) => { v = Math.round(Number(v)); return isNaN(v) ? d : v; };
+  const an = f.anchor && /^\d{4}-\d\d-\d\d$/.test(f.anchor.date) ? { date: f.anchor.date, bal: fn(f.anchor.bal, 0), pot: Math.max(0, fn(f.anchor.pot, 0)) } : null;
+  o.flex = { on: !!f.on, max: fn(f.max, 2400), min: fn(f.min, -1200), norm: Math.max(0, fn(f.norm, 480)), floor: Math.max(0, fn(f.floor, 360)), margin: Math.max(0, fn(f.margin, 300)), defer: f.defer !== false, anchor: an };
+  if (o.flex.max <= o.flex.min) { o.flex.max = 2400; o.flex.min = -1200; }
   return o;
 }
 function schedIdxFor(day) { const k = dk(day); let j = 0; S.schedules.forEach((sc, i) => { if ((sc.from || '') <= k) j = i; }); return j; }
@@ -251,6 +257,7 @@ let syncGoto = null;   // vecka att hoppa till när indikatorn trycks
 function setSync() {
   const el = $('#sync');
   let ov = null;
+  FT = null;
   try { ov = pendingOverview(); } catch (e) {}
   updateBadges(ov);
   syncGoto = null;
@@ -261,6 +268,16 @@ function setSync() {
     el.textContent = o.level === 'late' ? 'Missad överföring ' + dm(o.date) : o.level === 'last' ? 'Överför ' + dm(o.date) + ' idag!' : 'Överför ' + dm(o.date) + ' senast ' + dm(o.deadline);
     el.className = 'sync tap ' + (o.level === 'soon' ? 'warn' : 'err');
     syncGoto = o.mon; return;
+  }
+  let fs = null;
+  try { fs = flexStatus(); } catch (e) {}
+  if (fs) {
+    const lv = flexLevel(fs.bal);
+    if (lv !== 'ok') {
+      el.textContent = flexText(lv, fs.bal, true);
+      el.className = 'sync tap ' + (lv === 'over' || lv === 'under' ? 'err' : 'warn');
+      syncGoto = weekMonday(Date.now()); return;
+    }
   }
   const lb = lastBackup();
   const old = E.length && (!lb || Date.now() - lb > 14 * 864e5);
@@ -373,6 +390,116 @@ function weekData(mon) {
   return { days, extra, recv, out, over: carry, props, total, outside };
 }
 
+/* ---------- flexsaldo ---------- */
+/* Saldot i jobbappen = ankaret + (överförd tid − normtid) för varje överförd dag efter ankardatumet.
+   Prognosen lägger på ej överförda dagar enligt förslaget. Förslaget per dag kapas så att saldot efter
+   dagen inte går över max; det som inte ryms läggs i en pott ("uppskjuten tid") som släpps ut på senare
+   dagar när det finns utrymme under max. Stämplad tid sänks aldrig under golvet (eller dagens loggade tid
+   om den är kortare). Dagar utan förslag och utan överföring påverkar inte saldot (helg, ledig, ingen tid). */
+let FT = null;   // cache, nollställs i setSync() och render()
+const flexOn = () => !!(S.flex.on && S.flex.anchor);
+function planWeek(mon) {
+  const a = S.flex.anchor;
+  if (!FT) { const m0 = weekMonday(dkToMs(a.date)); FT = { next: m0, weeks: new Map(), bal: a.bal * MIN, pot: a.pot * MIN, balF: a.bal * MIN, potF: a.pot * MIN }; }
+  while (FT.next <= mon) { FT.weeks.set(FT.next, calcWeek(FT.next)); FT.next = addDays(FT.next, 7); }
+  return FT.weeks.get(mon);
+}
+function weekPlan(mon) {
+  if (!flexOn() || mon < weekMonday(dkToMs(S.flex.anchor.date))) return weekData(mon);
+  return planWeek(mon);
+}
+function calcWeek(m) {
+  const fx = S.flex, w = weekData(m), lunch = S.lunch * MIN, thr = S.lunchOver * MIN;
+  w.flex = Array(7).fill(null);
+  w.days.forEach((s, i) => {
+    const k = dk(s.day);
+    if (k <= fx.anchor.date) return;
+    const norm = hoursFor(s.day).on ? fx.norm * MIN : 0;
+    const p = w.props[i], t = T[k];
+    const fz = t && t.dur != null && !t.off && !t.handled ? t : null;
+    if (!p && !fz) return;
+    const base = p ? p.dur : 0;
+    let lim = base;
+    if (p && fx.defer) {
+      const W = Math.floor((s.win[1] - s.win[0]) / MIN) * MIN, cap = Math.max(W - lunch, Math.min(W, thr), base);
+      const floor = Math.min(fx.floor * MIN, base);
+      lim = Math.max(Math.min(base + FT.pot, fx.max * MIN - FT.bal + norm, cap), floor);
+      lim = Math.max(0, Math.floor(lim / MIN) * MIN);
+    }
+    // överförd dag med oförändrad loggad tid visas som överförd; annars räknas förslaget om
+    const shown = fz && fz.base === base ? fz.dur : lim;
+    if (p) { const np = proposal(s, shown - s.total); if (np) { np.base = base; w.props[i] = np; } }
+    const stamped = fz ? fz.dur : lim;
+    FT.bal += stamped - norm;
+    FT.pot = Math.max(0, FT.pot + base - stamped);
+    if (fz) { FT.balF += fz.dur - norm; FT.potF = Math.max(0, FT.potF + base - fz.dur); }
+    w.flex[i] = { norm, base, stamped, balAfter: FT.bal, potAfter: FT.pot, frozen: !!fz, deferred: Math.max(0, base - stamped), released: Math.max(0, stamped - base) };
+  });
+  return w;
+}
+function flexStatus() {
+  if (!flexOn()) return null;
+  planWeek(weekMonday(Date.now()));
+  return { bal: FT.bal, pot: FT.pot, balF: FT.balF, potF: FT.potF };
+}
+function fmtBal(ms) { const m = Math.round(ms / MIN), a = Math.abs(m); return (m < 0 ? '−' : '+') + Math.floor(a / 60) + ':' + pad(a % 60) + ' h'; }
+function flexLevel(bal) {
+  const fx = S.flex, b = Math.round(bal / MIN);
+  if (b > fx.max) return 'over';
+  if (b < fx.min) return 'under';
+  if (b === fx.max) return 'at';
+  if (b >= fx.max - fx.margin) return 'near';
+  if (b <= fx.min + fx.margin) return 'nearmin';
+  return 'ok';
+}
+function flexText(lv, bal, short) {
+  const fx = S.flex, b = Math.round(bal / MIN);
+  if (lv === 'over') return short ? 'Flex: ' + fmtDur((b - fx.max) * MIN) + ' över max' : fmtDur((b - fx.max) * MIN) + ' över max (' + fmtBal(fx.max * MIN) + ')';
+  if (lv === 'under') return short ? 'Flex: ' + fmtDur((fx.min - b) * MIN) + ' under min' : fmtDur((fx.min - b) * MIN) + ' under min (' + fmtBal(fx.min * MIN) + ')';
+  if (lv === 'at') return short ? 'Flex: på max' : 'På max – ny övertid skjuts upp';
+  if (lv === 'near') return short ? 'Flex: nära max' : 'Nära max – ' + fmtDur((fx.max - b) * MIN) + ' kvar';
+  if (lv === 'nearmin') return short ? 'Flex: nära min' : 'Nära min – ' + fmtDur((b - fx.min) * MIN) + ' kvar';
+  return '';
+}
+function flexCard() {
+  if (!S.flex.on) return '';
+  const fx = S.flex;
+  if (!fx.anchor) return '<div class="card"><b>Flexsaldo</b><p class="help">Ange saldot du har i jobbappen så håller Flexlogg koll mot max och min och skjuter upp övertid.</p><button class="btn block" data-fsync>Ange saldo</button></div>';
+  const st = flexStatus(), lv = flexLevel(st.bal);
+  const col = { over: 'var(--bad)', under: 'var(--bad)', at: 'var(--warn)', near: 'var(--warn)', nearmin: 'var(--warn)', ok: 'var(--ok)' }[lv];
+  const pos = Math.max(0, Math.min(100, 100 * (st.bal / MIN - fx.min) / (fx.max - fx.min)));
+  let h = '<div class="card"' + (lv === 'ok' ? '' : ' style="border-color:' + col + '"') + '><div class="row between"><b>Flexsaldo</b><button class="copy" data-fsync>Synka saldo</button></div>';
+  h += '<div class="row between" style="margin-top:8px"><span class="mute small">I jobbappen (överfört)</span><b class="big">' + fmtBal(st.balF) + '</b></div>';
+  if (Math.round(st.bal / MIN) !== Math.round(st.balF / MIN)) h += '<div class="row between"><span class="mute small">Prognos när allt är överfört</span><b style="color:' + col + '">' + fmtBal(st.bal) + '</b></div>';
+  h += '<div style="position:relative;height:8px;border-radius:4px;background:var(--chip);margin:12px 0 4px"><span style="position:absolute;top:-3px;left:calc(' + pos + '% - 7px);width:14px;height:14px;border-radius:7px;background:' + col + '"></span></div>';
+  h += '<div class="row between small mute"><span>min ' + fmtBal(fx.min * MIN) + '</span><span>max ' + fmtBal(fx.max * MIN) + '</span></div>';
+  if (lv !== 'ok') h += '<div style="margin-top:8px;color:' + col + ';font-weight:600">⚠ ' + flexText(lv, st.bal) + '</div>';
+  if (st.pot >= MIN) h += '<div class="small" style="margin-top:6px">⏩ Uppskjuten tid: <b>' + fmtDur(st.pot) + '</b> <span class="mute">– loggad men inte stämplad än. Läggs på senare dagar när saldot ligger under max.</span></div>';
+  h += '<div class="small mute" style="margin-top:6px">Utgår från ' + fmtBal(fx.anchor.bal * MIN) + ' efter ' + dm(dkToMs(fx.anchor.date)) + '.</div></div>';
+  return h;
+}
+function openFlexSync() {
+  const fx = S.flex, st = flexOn() ? flexStatus() : null;
+  const tk = Object.keys(T).filter(k => /^\d{4}-\d\d-\d\d$/.test(k) && T[k].dur != null && !T[k].handled && k <= dk(Date.now())).sort().pop();
+  const date = tk || dk(addDays(dayStart(Date.now()), -1));
+  const bal = st ? Math.round(st.balF / MIN) : 0, a = Math.abs(bal);
+  openModal('<h3>Synka flexsaldo</h3><p class="help">Ange saldot som jobbappen visar och till och med vilken dag det gäller (oftast senast överförda dag). Dagar efter datumet räknas av Flexlogg.</p>' +
+    '<label>Saldo i jobbappen</label><div class="row" style="gap:6px"><select id="fSign"><option value="1"' + (bal >= 0 ? ' selected' : '') + '>+</option><option value="-1"' + (bal < 0 ? ' selected' : '') + '>−</option></select><input type="number" id="fH" min="0" step="1" value="' + Math.floor(a / 60) + '" style="width:80px"> <span>h</span><input type="number" id="fM" min="0" max="59" step="1" value="' + (a % 60) + '" style="width:80px"> <span>min</span></div>' +
+    '<label style="margin-top:10px">Saldot gäller till och med</label><input type="date" id="fDate" value="' + (fx.anchor && !tk ? fx.anchor.date : date) + '">' +
+    '<label style="margin-top:10px">Uppskjuten tid just då (min)</label><input type="number" id="fPot" min="0" step="5" value="' + (st ? Math.round(st.potF / MIN) : 0) + '">' +
+    '<div class="row" style="margin-top:12px;gap:8px"><button class="btn sec" id="fCancel" style="margin-left:auto">Avbryt</button><button class="btn" id="fOk">Spara</button></div>', r => {
+    r.querySelector('#fCancel').onclick = closeModal;
+    r.querySelector('#fOk').onclick = () => {
+      const h = Math.max(0, Number(r.querySelector('#fH').value) || 0), mi = Math.max(0, Number(r.querySelector('#fM').value) || 0);
+      const d = r.querySelector('#fDate').value;
+      if (!d) { toast('Välj ett datum.'); return; }
+      S.flex.anchor = { date: d, bal: Number(r.querySelector('#fSign').value) * Math.round(h * 60 + mi), pot: Math.max(0, Math.round(Number(r.querySelector('#fPot').value) || 0)) };
+      S.flex.on = true;
+      commitSettings(); closeModal(); render(); toast('Flexsaldo synkat');
+    };
+  });
+}
+
 /* ---------- stamping ---------- */
 function stampTime() {
   const n = Date.now();
@@ -478,6 +605,7 @@ document.addEventListener('focusout', () => setTimeout(() => { if (needsRender &
 
 function render() {
   needsRender = false;
+  FT = null;
   document.querySelectorAll('#nav button').forEach(b => b.classList.toggle('on', b.dataset.tab === tab));
   $('#htitle').textContent = { stampla: 'Stämpla', logg: 'Logg', flex: 'Flex', stat: 'Statistik', inst: 'Inställningar' }[tab];
   const v = $('#view');
@@ -651,7 +779,7 @@ function weekItems(w, mon) {
   w.days.forEach((s, i) => {
     const p = w.props[i], key = dk(s.day), off = dayOff(s.day);
     if (off) items.push({ key, i, off: true, label: WD[i] + ' ' + dm(s.day), cur: { off: true } });
-    else if (p) items.push({ key, i, label: WD[i] + ' ' + dm(s.day), cur: { in: p.in, out: p.out, dur: p.dur } });
+    else if (p) items.push({ key, i, label: WD[i] + ' ' + dm(s.day), cur: { in: p.in, out: p.out, dur: p.dur, base: p.base } });
     else if (T[key]) items.push({ key, i, label: WD[i] + ' ' + dm(s.day), cur: null });
   });
   const sk = 'sep-' + dk(mon);
@@ -686,7 +814,7 @@ function pendingOverview() {
   const today = dayStart(Date.now()), thisMon = weekMonday(today);
   let mon = weekMonday(Math.min(...E.map(e => e.start))), count = 0, oldest = null;
   for (let n = 0; mon <= thisMon && n < 520; mon = addDays(mon, 7), n++) {
-    weekItems(weekData(mon), mon).forEach(it => {
+    weekItems(weekPlan(mon), mon).forEach(it => {
       if (!isPend(it)) return;
       const past = it.i >= 0 ? addDays(mon, it.i) < today : mon < thisMon;
       if (!past) return;
@@ -728,12 +856,12 @@ function trBadge(it) {
   return '<div style="margin-top:6px">' + h + '</div>';
 }
 function viewFlex() {
-  const w = weekData(flexWeek);
+  const w = weekPlan(flexWeek);
   const items = weekItems(w, flexWeek), byKey = {};
   items.forEach(it => { byKey[it.key] = it; });
   const pend = items.filter(it => isPend(it) && it.cur);
   const ov = pendingOverview();
-  let h = '';
+  let h = flexCard();
   if (ov) {
     const o = ov.oldest, col = LEVEL_COLOR[o.level];
     h += '<div class="card row between" style="border-color:' + (o.level === 'calm' ? 'var(--warn)' : col) + '"><span class="small"><b>' + ov.count + ' ' + (ov.count === 1 ? 'post' : 'poster') + ' ej överförda</b><br><span class="mute">äldsta: ' + WD[wdIdx(o.date)] + ' ' + dm(o.date) + '</span><br><b style="color:' + col + '">' + levelText(o) + '</b></span>' + (ov.first !== flexWeek ? '<button class="copy" data-gotoweek="' + ov.first + '">Visa</button>' : '') + '</div>';
@@ -756,6 +884,12 @@ function viewFlex() {
     if (p) h += '<div class="prop">In ' + clock(p.in) + ' &nbsp;→&nbsp; Ut ' + clock(p.out) + ' <span class="mute small">(' + fmtDur(p.dur) + (p.lunch ? ' + ' + p.lunch / MIN + ' min rast' : '') + ')</span></div>';
     else if (s.total) h += '<div class="small" style="color:var(--warn)">Ingen normal arbetstid denna dag – tiden läggs på tidigare dagar</div>';
     h += '<div class="small mute">Loggat ' + fmtDur(s.total) + (s.outside ? ', varav ' + fmtDur(s.outside) + ' utanför normaltid' : '') + (w.recv[i] ? ' · +' + fmtDur(w.recv[i]) + ' från senare dag/helg' : '') + '</div>';
+    const fi = w.flex && w.flex[i];
+    if (fi) {
+      if (fi.deferred >= MIN) h += '<div class="small" style="color:var(--warn)">⏩ ' + fmtDur(fi.deferred) + ' skjuts upp (flexsaldot vid max)</div>';
+      if (fi.released >= MIN) h += '<div class="small" style="color:var(--ok)">+' + fmtDur(fi.released) + ' från uppskjuten tid</div>';
+      h += '<div class="small mute">Flexsaldo efter dagen: ' + fmtBal(fi.balAfter) + '</div>';
+    }
     if (w.out[i] >= MIN) h += '<div class="small" style="color:var(--warn)">' + fmtDur(w.out[i]) + ' ryms inte – flyttas till dagen före</div>';
     if (p && p.over) h += '<div class="small" style="color:var(--bad)">Ryms inte inom normaltid: ' + fmtDur(p.over) + ' går över</div>';
     if (it) h += trBadge(it);
@@ -1012,6 +1146,17 @@ function viewSettings() {
     '<div class="row between"><span>Rast att lägga till (min)</span><input type="number" min="0" step="5" style="width:90px" data-lunch value="' + S.lunch + '"></div>' +
     '<div class="row between" style="margin-top:10px"><span>…men bara om arbetstiden är över (min)</span><input type="number" min="0" step="15" style="width:90px" data-lunchover value="' + S.lunchOver + '"></div>' +
     '<p class="help">Om flexappen drar av lunch automatiskt: ange minuterna så blir utstämplingen så mycket senare. Dagar med högst så många minuter arbetstid får ingen rast (240 = 4 h, 0 = alltid rast).</p></div>';
+  h += '<div class="sectionlbl">Flexsaldo</div><div class="card">' +
+    '<label class="row" style="gap:8px"><input type="checkbox" data-fon' + (S.flex.on ? ' checked' : '') + '> Håll koll på flexsaldot (max/min)</label>';
+  if (S.flex.on) {
+    const hv = m => +(m / 60).toFixed(2), fr = (lbl, key, val, step) => '<div class="row between" style="margin-top:10px"><span>' + lbl + '</span><input type="number" step="' + step + '" style="width:90px" data-' + key + ' value="' + hv(val) + '"></div>';
+    h += fr('Max saldo (timmar)', 'fmax', S.flex.max, 1) + fr('Min saldo (timmar)', 'fmin', S.flex.min, 1) + fr('Normtid per arbetsdag (timmar)', 'fnorm', S.flex.norm, 0.25) +
+      fr('Varna när det är så här nära en gräns (timmar)', 'fmargin', S.flex.margin, 1) +
+      '<label class="row" style="gap:8px;margin-top:12px"><input type="checkbox" data-fdefer' + (S.flex.defer ? ' checked' : '') + '> Skjut upp övertid automatiskt när saldot når max</label>' +
+      (S.flex.defer ? fr('Lägsta stämplade tid per dag vid uppskjutning (timmar)', 'ffloor', S.flex.floor, 0.25) : '') +
+      '<button class="btn sec block" data-fsync style="margin-top:12px">' + (S.flex.anchor ? 'Synka saldo (nu ' + fmtBal(S.flex.anchor.bal * MIN) + ' efter ' + dm(dkToMs(S.flex.anchor.date)) + ')' : 'Ange saldo i jobbappen') + '</button>';
+  }
+  h += '<p class="help">Saldot räknas som överförd tid minus normtid för varje arbetsdag (helg och lediga dagar räknas som noll). Ligger saldot vid max sänks dagens förslag och övertiden läggs i en pott som stämplas senare när det finns plats under max. Dagar utan loggad tid påverkar inte saldot. Synka när jobbappens saldo avviker.</p></div>';
   h += '<div class="sectionlbl">Överföring till jobbappen</div><div class="card">' +
     '<div class="row between"><span>Jobbappen kan ändras så många dagar bakåt</span><input type="number" min="1" max="60" step="1" style="width:90px" data-tdays value="' + S.transferDays + '"></div>' +
     '<div class="row between" style="margin-top:10px"><span>Varna när det är så här många dagar kvar</span><input type="number" min="0" max="30" step="1" style="width:90px" data-wdays value="' + S.warnDays + '"></div>' +
@@ -1090,7 +1235,7 @@ $('#nav').addEventListener('click', ev => {
 });
 const view = $('#view');
 view.addEventListener('click', ev => {
-  const t = ev.target.closest('[data-press],[data-notes],[data-handled],[data-dayoff],[data-addoff],[data-deloff],[data-chip],[data-logweek],[data-edit],[data-add],[data-week],[data-copyday],[data-copyweek],[data-mark],[data-unmark],[data-markall],[data-gotoweek],[data-up],[data-down],[data-del],[data-unarch],[data-addcat],[data-csv],[data-savebk],[data-restore],[data-addsched],[data-sdel],[data-skind],[data-sstep],[data-cmode],[data-bar]');
+  const t = ev.target.closest('[data-press],[data-notes],[data-handled],[data-dayoff],[data-addoff],[data-deloff],[data-chip],[data-logweek],[data-edit],[data-add],[data-week],[data-copyday],[data-copyweek],[data-fsync],[data-mark],[data-unmark],[data-markall],[data-gotoweek],[data-up],[data-down],[data-del],[data-unarch],[data-addcat],[data-csv],[data-savebk],[data-restore],[data-addsched],[data-sdel],[data-skind],[data-sstep],[data-cmode],[data-bar]');
   if (!t) return;
   const d = t.dataset;
   if (d.press) return press(d.press);
@@ -1107,7 +1252,7 @@ view.addEventListener('click', ev => {
   if (d.add != null) { logDay = Number(d.add) || dayStart(Date.now()); return editEntry(null); }
   if (d.week != null) { flexWeek = d.week === '0' ? weekMonday(Date.now()) : addDays(flexWeek, 7 * Number(d.week)); return render(); }
   if (d.mark || d.unmark || d.markall != null) {
-    const its = weekItems(weekData(flexWeek), flexWeek);
+    const its = weekItems(weekPlan(flexWeek), flexWeek);
     if (d.unmark) delete T[d.unmark];
     else its.filter(it => it.cur && (d.markall != null ? isPend(it) : it.key === d.mark)).forEach(markItem);
     commit(); return render();
@@ -1125,9 +1270,10 @@ view.addEventListener('click', ev => {
   }
   if (d.handled) { T[d.handled] = { at: Date.now(), handled: true }; commit(); return render(); }
   if (d.gotoweek) { flexWeek = Number(d.gotoweek); render(); window.scrollTo(0, 0); return; }
-  if (d.copyweek != null) return copyText(weekText(weekData(flexWeek), flexWeek));
+  if (d.copyweek != null) return copyText(weekText(weekPlan(flexWeek), flexWeek));
+  if (d.fsync != null) return openFlexSync();
   if (d.copyday != null) {
-    const w = weekData(flexWeek), i = Number(d.copyday), p = w.props[i];
+    const w = weekPlan(flexWeek), i = Number(d.copyday), p = w.props[i];
     if (p) copyText(WD[i] + ' ' + dm(w.days[i].day) + ': In ' + clock(p.in) + '  Ut ' + clock(p.out) + '  (' + fmtDur(p.dur) + ')');
     return;
   }
@@ -1243,6 +1389,17 @@ view.addEventListener('change', ev => {
       Promise.resolve(Notification.requestPermission()).then(p => { if (p !== 'granted') toast('Utan notisbehörighet visas inget märke.'); commitSettings(); render(); }).catch(() => { commitSettings(); render(); });
       return;
     }
+    commitSettings(); return render();
+  }
+  if (d.fon != null) { S.flex.on = t.checked; commitSettings(); return render(); }
+  if (d.fdefer != null) { S.flex.defer = t.checked; commitSettings(); return render(); }
+  const FK = { fmax: 'max', fmin: 'min', fnorm: 'norm', ffloor: 'floor', fmargin: 'margin' }, fk = Object.keys(FK).find(k => d[k] != null);
+  if (fk) {
+    let v = Math.round(Number(String(t.value).replace(',', '.')) * 60);
+    if (t.value === '' || isNaN(v)) return render();
+    if (fk !== 'fmax' && fk !== 'fmin') v = Math.max(0, v);
+    const old = S.flex[FK[fk]]; S.flex[FK[fk]] = v;
+    if (S.flex.max <= S.flex.min) { S.flex[FK[fk]] = old; toast('Max måste vara större än min.'); return render(); }
     commitSettings(); return render();
   }
   if (d.lunchover != null) { S.lunchOver = Math.max(0, Number(t.value) || 0); commitSettings(); return; }
