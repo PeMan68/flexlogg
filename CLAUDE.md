@@ -96,6 +96,12 @@ Publiceras via GitHub Pages från branch `master`, rot. Ingen byggprocess, inga 
   Golv: stämplad tid sänks aldrig under `flex.floor` (eller dagens tid om den är kortare). Överförda dagar fryses via `T[dag].base` (loggad tid vid överföring).
 - Nivåer (`flexLevel`): over/under (röd), at/near/nearmin (orange). Visas i indikatorn (efter överföringsvarning, före säkerhetskopia) och i saldokortet överst i Flex.
 
+## Namn på jobbets system och Inställningar
+- `S.sysName` (förval "Kom & Gå", max 24 tecken) = vad jobbets flexsystem heter. Använd `sys()`/`sysH()` (HTML-säker) i all text i stället för
+  "jobbappen"/"flexappen". "Flexlogg" är alltid den egna appen. Flik-etiketten för Flex-fliken (`#nav .lbl`) och sidrubriken visar namnet (trunkeras med ellips).
+- Inställningar är hopfällbara grupper (`<details class="grp" data-g>`, funktionen `G()` i `viewSettings()`): Kategorier · Arbetstid och ledighet ·
+  <namn>: förslag och överföring · Flexsaldo · Data. Öppet/stängt sparas i localStorage `flexlogg-open` (inte i `S`).
+
 ## Flikar
 Stämpla · Logg (redigera/lägg till/ta bort poster per dag) · Flex (veckoförslag, kopiera,
 markera överfört) · Statistik · Inställningar (kategorier, flexram-scheman, lunch, data).

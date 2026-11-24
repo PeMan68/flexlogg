@@ -61,6 +61,16 @@ input[type=color]{padding:0;width:34px;height:34px;border-radius:50%;overflow:hi
 nav{position:fixed;left:0;right:0;bottom:0;background:var(--card);border-top:1px solid var(--line);display:flex;padding-bottom:env(safe-area-inset-bottom);z-index:5}
 nav button{flex:1;min-width:0;border:0;background:none;color:var(--mute);font:inherit;font-size:11px;padding:8px 0 10px;display:flex;flex-direction:column;align-items:center;gap:2px}
 nav button svg{width:24px;height:24px}
+nav button .lbl{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 2px}
+details.grp{background:var(--card);border:1px solid var(--line);border-radius:16px;margin:10px 0;overflow:hidden}
+details.grp>summary{list-style:none;padding:14px;display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:650}
+details.grp>summary::-webkit-details-marker{display:none}
+details.grp>summary .sum{margin-left:auto;font-weight:400;font-size:13px;color:var(--mute);text-align:right;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+details.grp>summary::after{content:'›';color:var(--mute);font-size:22px;line-height:1;transition:transform .15s}
+details.grp[open]>summary::after{transform:rotate(90deg)}
+details.grp[open]>summary{border-bottom:1px solid var(--line)}
+details.grp .card{border:0;border-radius:0;margin:0;background:none}
+details.grp .card+.card{border-top:1px solid var(--line)}
 nav button.on{color:var(--accent)}
 .navbar{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .navbar button{border:0;background:var(--chip);color:var(--ink);border-radius:10px;padding:8px 14px;font:inherit}
@@ -122,7 +132,7 @@ nav button.on{color:var(--accent)}
 <nav id="nav">
   <button data-tab="stampla"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5M9 2h6"/></svg>Stämpla</button>
   <button data-tab="logg"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>Logg</button>
-  <button data-tab="flex"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4M7 14h4M7 17h7"/></svg>Flex</button>
+  <button data-tab="flex"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4M7 14h4M7 17h7"/></svg><span class="lbl">Flex</span></button>
   <button data-tab="stat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>Statistik</button>
   <button data-tab="inst"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>Inställningar</button>
 </nav>
@@ -174,11 +184,12 @@ const DEFAULT_SETTINGS = {
   appBadge: false,  // antal väntande dagar som märke på appikonen
   daysOff: [],      // lediga dagar (semester m.m.): [{ from, to, label }], behandlas som helg
   offDays: 'separate',
+  sysName: 'Kom & Gå',   // vad jobbets flexsystem kallas
   // flexsaldo (minuter): gränser, normtid per arbetsdag, golv för dagens stämplade tid, ankare = saldo i jobbappen
   flex: { on: false, max: 2400, min: -1200, norm: 480, floor: 360, margin: 300, defer: true, anchor: null }
 };
 let S = normalizeSettings({});
-const APP_VERSION = 'v21';   // håll lika med CACHE i sw.js
+const APP_VERSION = 'v22';   // håll lika med CACHE i sw.js
 let E = [];
 let T = {};        // överfört till flexappen: dag -> {at, in, out, dur}
 let tab = 'stampla';
@@ -198,6 +209,7 @@ function normalizeSettings(s) {
   o.schedules.sort((a, b) => (a.from || '').localeCompare(b.from || ''));
   o.schedules[0].from = '';
   delete o.hours;
+  o.sysName = String(o.sysName || '').trim().slice(0, 24) || 'Kom & Gå';
   o.lunch = Math.max(0, Number(o.lunch) || 0);
   o.lunchOver = Math.max(0, Number(o.lunchOver) || 0);
   o.transferDays = Math.max(1, Math.min(60, Math.round(Number(o.transferDays)) || 6));   // jobbappen kan ändras så många dagar bakåt
@@ -226,6 +238,8 @@ function setDayOff(day, off) {
   if (off) out.push({ from: k, to: k, label: '' });
   S.daysOff = out.sort((a, b) => a.from.localeCompare(b.from));
 }
+const sys = () => S.sysName;
+const sysH = () => esc(S.sysName);
 const cat = id => S.categories.find(c => c.id === id);
 const isWork = c => !!c && (c.type === 'work' || c.type === 'sub');
 const activeOf = id => E.find(e => e.cat === id && e.end == null);
@@ -454,22 +468,22 @@ function flexLevel(bal) {
 }
 function flexText(lv, bal, short) {
   const fx = S.flex, b = Math.round(bal / MIN);
-  if (lv === 'over') return short ? 'Flex: ' + fmtDur((b - fx.max) * MIN) + ' över max' : fmtDur((b - fx.max) * MIN) + ' över max (' + fmtBal(fx.max * MIN) + ')';
-  if (lv === 'under') return short ? 'Flex: ' + fmtDur((fx.min - b) * MIN) + ' under min' : fmtDur((fx.min - b) * MIN) + ' under min (' + fmtBal(fx.min * MIN) + ')';
-  if (lv === 'at') return short ? 'Flex: på max' : 'På max – ny övertid skjuts upp';
-  if (lv === 'near') return short ? 'Flex: nära max' : 'Nära max – ' + fmtDur((fx.max - b) * MIN) + ' kvar';
-  if (lv === 'nearmin') return short ? 'Flex: nära min' : 'Nära min – ' + fmtDur((b - fx.min) * MIN) + ' kvar';
+  if (lv === 'over') return short ? 'Saldo: ' + fmtDur((b - fx.max) * MIN) + ' över max' : fmtDur((b - fx.max) * MIN) + ' över max (' + fmtBal(fx.max * MIN) + ')';
+  if (lv === 'under') return short ? 'Saldo: ' + fmtDur((fx.min - b) * MIN) + ' under min' : fmtDur((fx.min - b) * MIN) + ' under min (' + fmtBal(fx.min * MIN) + ')';
+  if (lv === 'at') return short ? 'Saldo: på max' : 'På max – ny övertid skjuts upp';
+  if (lv === 'near') return short ? 'Saldo: nära max' : 'Nära max – ' + fmtDur((fx.max - b) * MIN) + ' kvar';
+  if (lv === 'nearmin') return short ? 'Saldo: nära min' : 'Nära min – ' + fmtDur((b - fx.min) * MIN) + ' kvar';
   return '';
 }
 function flexCard() {
   if (!S.flex.on) return '';
   const fx = S.flex;
-  if (!fx.anchor) return '<div class="card"><b>Flexsaldo</b><p class="help">Ange saldot du har i jobbappen så håller Flexlogg koll mot max och min och skjuter upp övertid.</p><button class="btn block" data-fsync>Ange saldo</button></div>';
+  if (!fx.anchor) return '<div class="card"><b>Flexsaldo</b><p class="help">Ange saldot du har i ' + sysH() + ' så håller Flexlogg koll mot max och min och skjuter upp övertid.</p><button class="btn block" data-fsync>Ange saldo</button></div>';
   const st = flexStatus(), lv = flexLevel(st.bal);
   const col = { over: 'var(--bad)', under: 'var(--bad)', at: 'var(--warn)', near: 'var(--warn)', nearmin: 'var(--warn)', ok: 'var(--ok)' }[lv];
   const pos = Math.max(0, Math.min(100, 100 * (st.bal / MIN - fx.min) / (fx.max - fx.min)));
   let h = '<div class="card"' + (lv === 'ok' ? '' : ' style="border-color:' + col + '"') + '><div class="row between"><b>Flexsaldo</b><button class="copy" data-fsync>Synka saldo</button></div>';
-  h += '<div class="row between" style="margin-top:8px"><span class="mute small">I jobbappen (överfört)</span><b class="big">' + fmtBal(st.balF) + '</b></div>';
+  h += '<div class="row between" style="margin-top:8px"><span class="mute small">I ' + sysH() + ' (överfört)</span><b class="big">' + fmtBal(st.balF) + '</b></div>';
   if (Math.round(st.bal / MIN) !== Math.round(st.balF / MIN)) h += '<div class="row between"><span class="mute small">Prognos när allt är överfört</span><b style="color:' + col + '">' + fmtBal(st.bal) + '</b></div>';
   h += '<div style="position:relative;height:8px;border-radius:4px;background:var(--chip);margin:12px 0 4px"><span style="position:absolute;top:-3px;left:calc(' + pos + '% - 7px);width:14px;height:14px;border-radius:7px;background:' + col + '"></span></div>';
   h += '<div class="row between small mute"><span>min ' + fmtBal(fx.min * MIN) + '</span><span>max ' + fmtBal(fx.max * MIN) + '</span></div>';
@@ -483,8 +497,8 @@ function openFlexSync() {
   const tk = Object.keys(T).filter(k => /^\d{4}-\d\d-\d\d$/.test(k) && T[k].dur != null && !T[k].handled && k <= dk(Date.now())).sort().pop();
   const date = tk || dk(addDays(dayStart(Date.now()), -1));
   const bal = st ? Math.round(st.balF / MIN) : 0, a = Math.abs(bal);
-  openModal('<h3>Synka flexsaldo</h3><p class="help">Ange saldot som jobbappen visar och till och med vilken dag det gäller (oftast senast överförda dag). Dagar efter datumet räknas av Flexlogg.</p>' +
-    '<label>Saldo i jobbappen</label><div class="row" style="gap:6px"><select id="fSign"><option value="1"' + (bal >= 0 ? ' selected' : '') + '>+</option><option value="-1"' + (bal < 0 ? ' selected' : '') + '>−</option></select><input type="number" id="fH" min="0" step="1" value="' + Math.floor(a / 60) + '" style="width:80px"> <span>h</span><input type="number" id="fM" min="0" max="59" step="1" value="' + (a % 60) + '" style="width:80px"> <span>min</span></div>' +
+  openModal('<h3>Synka flexsaldo</h3><p class="help">Ange saldot som ' + sysH() + ' visar och till och med vilken dag det gäller (oftast senast överförda dag). Dagar efter datumet räknas av Flexlogg.</p>' +
+    '<label>Saldo i ' + sysH() + '</label><div class="row" style="gap:6px"><select id="fSign"><option value="1"' + (bal >= 0 ? ' selected' : '') + '>+</option><option value="-1"' + (bal < 0 ? ' selected' : '') + '>−</option></select><input type="number" id="fH" min="0" step="1" value="' + Math.floor(a / 60) + '" style="width:80px"> <span>h</span><input type="number" id="fM" min="0" max="59" step="1" value="' + (a % 60) + '" style="width:80px"> <span>min</span></div>' +
     '<label style="margin-top:10px">Saldot gäller till och med</label><input type="date" id="fDate" value="' + (fx.anchor && !tk ? fx.anchor.date : date) + '">' +
     '<label style="margin-top:10px">Uppskjuten tid just då (min)</label><input type="number" id="fPot" min="0" step="5" value="' + (st ? Math.round(st.potF / MIN) : 0) + '">' +
     '<div class="row" style="margin-top:12px;gap:8px"><button class="btn sec" id="fCancel" style="margin-left:auto">Avbryt</button><button class="btn" id="fOk">Spara</button></div>', r => {
@@ -606,8 +620,9 @@ document.addEventListener('focusout', () => setTimeout(() => { if (needsRender &
 function render() {
   needsRender = false;
   FT = null;
+  const nl = document.querySelector('#nav [data-tab="flex"] .lbl'); if (nl) nl.textContent = S.sysName;
   document.querySelectorAll('#nav button').forEach(b => b.classList.toggle('on', b.dataset.tab === tab));
-  $('#htitle').textContent = { stampla: 'Stämpla', logg: 'Logg', flex: 'Flex', stat: 'Statistik', inst: 'Inställningar' }[tab];
+  $('#htitle').textContent = { stampla: 'Stämpla', logg: 'Logg', flex: S.sysName, stat: 'Statistik', inst: 'Inställningar' }[tab];
   const v = $('#view');
   if (tab === 'stampla') v.innerHTML = viewStamp();
   else if (tab === 'logg') v.innerHTML = viewLog();
@@ -868,9 +883,9 @@ function viewFlex() {
   }
   h += '<div class="card navbar"><button data-week="-1">‹</button><div class="ttl">Vecka ' + isoWeek(flexWeek) + '<div class="small mute">' + dm(flexWeek) + '–' + dm(addDays(flexWeek, 6)) + '</div></div><button data-week="1">›</button></div>';
   if (flexWeek !== weekMonday(Date.now())) h += '<div class="row" style="justify-content:center"><button class="chip" data-week="0">Denna vecka</button></div>';
-  if (w.over >= MIN) h += '<div class="card" style="border-color:var(--bad)"><b style="color:var(--bad)">⚠ ' + fmtDur(w.over) + ' ryms inte i veckan</b><div class="small" style="margin-top:4px">Alla dagar med loggad tid är fulla. Lägg överskottet på en annan vecka i jobbappen (se längst ned).</div></div>';
+  if (w.over >= MIN) h += '<div class="card" style="border-color:var(--bad)"><b style="color:var(--bad)">⚠ ' + fmtDur(w.over) + ' ryms inte i veckan</b><div class="small" style="margin-top:4px">Alla dagar med loggad tid är fulla. Lägg överskottet på en annan vecka i ' + sysH() + ' (se längst ned).</div></div>';
   h += '<div class="card today"><div><span>Total arbetstid</span><b class="big">' + fmtDur(w.total) + '</b></div><div><span>varav utanför normaltid</span><b class="big">' + fmtDur(w.outside) + '</b></div></div>';
-  h += '<div class="card"><div class="row between"><b>Förslag till flexappen</b><button class="copy" data-copyweek>' + (pend.length && pend.length < items.filter(x => x.cur).length ? 'Kopiera ej överförda' : 'Kopiera veckan') + '</button></div><p class="help">Dagens arbetstid. Kvälls-, helg- och överskottstid fördelas bakåt från fredag så att allt ligger inom normal arbetstid' + (S.lunch ? ' (+' + S.lunch + ' min rast' + (S.lunchOver ? ' på dagar över ' + fmtDur(S.lunchOver * MIN) : '') + ')' : '') + '. Markera det du lagt in i flexappen som överfört.</p>';
+  h += '<div class="card"><div class="row between"><b>Förslag till ' + sysH() + '</b><button class="copy" data-copyweek>' + (pend.length && pend.length < items.filter(x => x.cur).length ? 'Kopiera ej överförda' : 'Kopiera veckan') + '</button></div><p class="help">Dagens arbetstid. Kvälls-, helg- och överskottstid fördelas bakåt från fredag så att allt ligger inom normal arbetstid' + (S.lunch ? ' (+' + S.lunch + ' min rast' + (S.lunchOver ? ' på dagar över ' + fmtDur(S.lunchOver * MIN) : '') + ')' : '') + '. Markera det du lagt in i ' + sysH() + ' som överfört.</p>';
   if (pend.length > 1) h += '<button class="btn sec block" data-markall style="margin-bottom:6px">Markera hela veckan som överförd</button>';
   let any = false;
   w.days.forEach((s, i) => {
@@ -880,7 +895,7 @@ function viewFlex() {
     const done = it && (it.state === 'done' || it.state === 'handled');
     h += '<div class="day"' + (done ? ' style="opacity:.6"' : '') + '><div class="row between"><b>' + WDL[i] + ' ' + dm(s.day) + '</b>' + (p ? '<button class="copy" data-copyday="' + i + '">Kopiera</button>' : '') + '</div>';
     const off = dayOff(s.day);
-    if (off) h += '<div class="prop" style="color:var(--mute)">Ledig dag' + (off.label ? ' – ' + esc(off.label) : '') + '</div><div class="small mute">Ska registreras som ledighet i flexsystemet.</div>';
+    if (off) h += '<div class="prop" style="color:var(--mute)">Ledig dag' + (off.label ? ' – ' + esc(off.label) : '') + '</div><div class="small mute">Ska registreras som ledighet i ' + sysH() + '.</div>';
     if (p) h += '<div class="prop">In ' + clock(p.in) + ' &nbsp;→&nbsp; Ut ' + clock(p.out) + ' <span class="mute small">(' + fmtDur(p.dur) + (p.lunch ? ' + ' + p.lunch / MIN + ' min rast' : '') + ')</span></div>';
     else if (s.total) h += '<div class="small" style="color:var(--warn)">Ingen normal arbetstid denna dag – tiden läggs på tidigare dagar</div>';
     h += '<div class="small mute">Loggat ' + fmtDur(s.total) + (s.outside ? ', varav ' + fmtDur(s.outside) + ' utanför normaltid' : '') + (w.recv[i] ? ' · +' + fmtDur(w.recv[i]) + ' från senare dag/helg' : '') + '</div>';
@@ -897,7 +912,7 @@ function viewFlex() {
   });
   if (!any) h += '<div class="empty">Ingen arbetstid loggad den här veckan.</div>';
   const sit = byKey['sep-' + dk(flexWeek)];
-  if (sit) h += '<div class="day"' + (sit.state === 'done' || sit.state === 'handled' ? ' style="opacity:.6"' : '') + '><b style="color:var(--bad)">Ryms inte i veckan</b>' + (sit.cur ? '<div class="prop">' + fmtDur(sit.cur.dur) + '</div><div class="small" style="color:var(--bad)">Lägg själv på en annan vecka i jobbappen.</div>' : '') + trBadge(sit) + '</div>';
+  if (sit) h += '<div class="day"' + (sit.state === 'done' || sit.state === 'handled' ? ' style="opacity:.6"' : '') + '><b style="color:var(--bad)">Ryms inte i veckan</b>' + (sit.cur ? '<div class="prop">' + fmtDur(sit.cur.dur) + '</div><div class="small" style="color:var(--bad)">Lägg själv på en annan vecka i ' + sysH() + '.</div>' : '') + trBadge(sit) + '</div>';
   h += '</div>';
   // breakdown per category for the week
   const tot = {};
@@ -1105,9 +1120,13 @@ function viewStat() {
 }
 
 /* ---------- view: inställningar ---------- */
+let OPEN = new Set();
+try { OPEN = new Set(JSON.parse(localStorage.getItem('flexlogg-open') || '[]')); } catch (e) {}
 function viewSettings() {
   const works = S.categories.filter(c => c.type === 'work');
-  let h = '<div class="sectionlbl">Kategorier</div><div class="card">';
+  let grpOpen = false;
+  const G = (key, title, sum) => { const r = (grpOpen ? '</details>' : '') + '<details class="grp" data-g="' + key + '"' + (OPEN.has(key) ? ' open' : '') + '><summary>' + title + '<span class="sum">' + sum + '</span></summary>'; grpOpen = true; return r; };
+  let h = G('kat', 'Kategorier', S.categories.filter(c => !c.archived).length + ' st') + '<div class="card">';
   S.categories.forEach((c, i) => {
     const used = E.some(e => e.cat === c.id);
     h += '<div class="catrow" style="' + (c.archived ? 'opacity:.5' : '') + '"><input type="color" value="' + esc(c.color) + '" data-cc="' + i + '"><input type="text" value="' + esc(c.name) + '" data-cn="' + i + '"><div class="row"><button class="icon" data-up="' + i + '">↑</button><button class="icon" data-down="' + i + '">↓</button></div>' +
@@ -1119,7 +1138,7 @@ function viewSettings() {
   });
   h += '<button class="btn sec block" data-addcat style="margin-top:10px">+ Ny kategori</button>' +
     '<p class="help"><b>Arbetstid</b> räknas i flexen. <b>Delkategori</b> delar upp arbetstid under en huvudkategori – startar du den startas huvudkategorin också. <b>Ej arbetstid</b> loggas men räknas inte.</p></div>';
-  h += '<div class="sectionlbl">Normal arbetstid</div><div class="card">';
+  h += G('arb', 'Arbetstid och ledighet', S.daysOff.length ? S.daysOff.length + ' lediga perioder' : 'Flexram') + '<div class="card"><b>Normal arbetstid (flexram)</b>';
   const curJ = schedIdxFor(Date.now());
   for (let j = S.schedules.length - 1; j >= 0; j--) {
     const sc = S.schedules[j];
@@ -1135,18 +1154,24 @@ function viewSettings() {
   }
   h += '<button class="btn sec block" data-addsched style="margin-top:6px">+ Nytt schema från ett datum</button>' +
     '<p class="help">Varje dag räknas med det schema som gällde då, så historiken ändras inte när du byter schema. Ändrar du i ett schema som redan har loggade dagar får du välja om ändringen ska gälla från ett datum eller rätta hela perioden.</p></div>';
-  h += '<div class="sectionlbl">Lediga dagar</div><div class="card">';
+  h += '<div class="card"><b>Lediga dagar</b>';
   S.daysOff.forEach((x, i) => {
     h += '<div class="sched" style="' + (i ? 'border-top:1px solid var(--line);padding-top:12px' : '') + '"><div class="row" style="gap:6px;flex-wrap:wrap"><input type="date" data-offfrom="' + i + '" value="' + esc(x.from) + '"><span class="mute">–</span><input type="date" data-offto="' + i + '" value="' + esc(x.to) + '"></div>' +
       '<div class="row" style="gap:6px;margin-top:6px"><input type="text" data-offlabel="' + i + '" maxlength="40" placeholder="Namn, t.ex. Semester" value="' + esc(x.label) + '" style="flex:1"><button class="chip" data-deloff="' + i + '">Ta bort</button></div></div>';
   });
   h += (S.daysOff.length ? '' : '<div class="empty" style="padding:6px 0 12px">Inga lediga dagar.</div>') + '<button class="btn sec block" data-addoff>+ Ledig period</button>' +
-    '<p class="help">Semester och andra lediga dagar behandlas som helg: ingen normal arbetstid, och tid du ändå loggar de dagarna fördelas bakåt. De visas i Flex som "Ledig dag" som du markerar när ledigheten är registrerad i flexsystemet. En enstaka dag kan också markeras som ledig i Logg.</p></div>';
-  h += '<div class="sectionlbl">Förslag till flexappen</div><div class="card">' +
+    '<p class="help">Semester och andra lediga dagar behandlas som helg: ingen normal arbetstid, och tid du ändå loggar de dagarna fördelas bakåt. De visas i Flex som "Ledig dag" som du markerar när ledigheten är registrerad i ' + sysH() + '. En enstaka dag kan också markeras som ledig i Logg.</p></div>';
+  h += G('sys', sysH() + ': förslag och överföring', 'Rast ' + S.lunch + ' min · ' + S.transferDays + ' dagar') + '<div class="card"><div class="row between"><span>Namn på jobbets flexsystem</span><input type="text" maxlength="24" style="width:140px" data-sysname value="' + esc(S.sysName) + '"></div>' +
+    '<p class="help">Används i hela appen (förval Kom &amp; Gå).</p></div><div class="card"><b>Förslag</b>' +
     '<div class="row between"><span>Rast att lägga till (min)</span><input type="number" min="0" step="5" style="width:90px" data-lunch value="' + S.lunch + '"></div>' +
     '<div class="row between" style="margin-top:10px"><span>…men bara om arbetstiden är över (min)</span><input type="number" min="0" step="15" style="width:90px" data-lunchover value="' + S.lunchOver + '"></div>' +
-    '<p class="help">Om flexappen drar av lunch automatiskt: ange minuterna så blir utstämplingen så mycket senare. Dagar med högst så många minuter arbetstid får ingen rast (240 = 4 h, 0 = alltid rast).</p></div>';
-  h += '<div class="sectionlbl">Flexsaldo</div><div class="card">' +
+    '<p class="help">Om ' + sysH() + ' drar av lunch automatiskt: ange minuterna så blir utstämplingen så mycket senare. Dagar med högst så många minuter arbetstid får ingen rast (240 = 4 h, 0 = alltid rast).</p></div>';
+  h += '<div class="card"><b>Överföring</b>' +
+    '<div class="row between"><span>' + sysH() + ' kan ändras så många dagar bakåt</span><input type="number" min="1" max="60" step="1" style="width:90px" data-tdays value="' + S.transferDays + '"></div>' +
+    '<div class="row between" style="margin-top:10px"><span>Varna när det är så här många dagar kvar</span><input type="number" min="0" max="30" step="1" style="width:90px" data-wdays value="' + S.warnDays + '"></div>' +
+    '<label class="row" style="gap:8px;margin-top:12px"><input type="checkbox" data-appbadge' + (S.appBadge ? ' checked' : '') + '> Visa antal väntande dagar på appikonen</label>' +
+    '<p class="help">Sista dag att föra över en dag är dagen + ' + S.transferDays + ' dagar (idag ' + dm(Date.now()) + ' → äldsta dag att ändra: ' + dm(addDays(dayStart(Date.now()), -S.transferDays)) + '). Missade dagar ligger kvar i rött tills du trycker "Hanterad". Appikonens märke kräver att appen ligger på hemskärmen och att du tillåter notiser; stöds det inte händer inget.</p></div>';
+  h += G('saldo', 'Flexsaldo i ' + sysH(), S.flex.on ? 'max ' + fmtBal(S.flex.max * MIN) + ' · min ' + fmtBal(S.flex.min * MIN) : 'av') + '<div class="card">' +
     '<label class="row" style="gap:8px"><input type="checkbox" data-fon' + (S.flex.on ? ' checked' : '') + '> Håll koll på flexsaldot (max/min)</label>';
   if (S.flex.on) {
     const hv = m => +(m / 60).toFixed(2), fr = (lbl, key, val, step) => '<div class="row between" style="margin-top:10px"><span>' + lbl + '</span><input type="number" step="' + step + '" style="width:90px" data-' + key + ' value="' + hv(val) + '"></div>';
@@ -1154,20 +1179,15 @@ function viewSettings() {
       fr('Varna när det är så här nära en gräns (timmar)', 'fmargin', S.flex.margin, 1) +
       '<label class="row" style="gap:8px;margin-top:12px"><input type="checkbox" data-fdefer' + (S.flex.defer ? ' checked' : '') + '> Skjut upp övertid automatiskt när saldot når max</label>' +
       (S.flex.defer ? fr('Lägsta stämplade tid per dag vid uppskjutning (timmar)', 'ffloor', S.flex.floor, 0.25) : '') +
-      '<button class="btn sec block" data-fsync style="margin-top:12px">' + (S.flex.anchor ? 'Synka saldo (nu ' + fmtBal(S.flex.anchor.bal * MIN) + ' efter ' + dm(dkToMs(S.flex.anchor.date)) + ')' : 'Ange saldo i jobbappen') + '</button>';
+      '<button class="btn sec block" data-fsync style="margin-top:12px">' + (S.flex.anchor ? 'Synka saldo (nu ' + fmtBal(S.flex.anchor.bal * MIN) + ' efter ' + dm(dkToMs(S.flex.anchor.date)) + ')' : 'Ange saldo i ' + sys()) + '</button>';
   }
-  h += '<p class="help">Saldot räknas som överförd tid minus normtid för varje arbetsdag (helg och lediga dagar räknas som noll). Ligger saldot vid max sänks dagens förslag och övertiden läggs i en pott som stämplas senare när det finns plats under max. Dagar utan loggad tid påverkar inte saldot. Synka när jobbappens saldo avviker.</p></div>';
-  h += '<div class="sectionlbl">Överföring till jobbappen</div><div class="card">' +
-    '<div class="row between"><span>Jobbappen kan ändras så många dagar bakåt</span><input type="number" min="1" max="60" step="1" style="width:90px" data-tdays value="' + S.transferDays + '"></div>' +
-    '<div class="row between" style="margin-top:10px"><span>Varna när det är så här många dagar kvar</span><input type="number" min="0" max="30" step="1" style="width:90px" data-wdays value="' + S.warnDays + '"></div>' +
-    '<label class="row" style="gap:8px;margin-top:12px"><input type="checkbox" data-appbadge' + (S.appBadge ? ' checked' : '') + '> Visa antal väntande dagar på appikonen</label>' +
-    '<p class="help">Sista dag att föra över en dag är dagen + ' + S.transferDays + ' dagar (idag ' + dm(Date.now()) + ' → äldsta dag att ändra: ' + dm(addDays(dayStart(Date.now()), -S.transferDays)) + '). Missade dagar ligger kvar i rött tills du trycker "Hanterad". Appikonens märke kräver att appen ligger på hemskärmen och att du tillåter notiser; stöds det inte händer inget.</p></div>';
-  h += '<div class="sectionlbl">Data</div><div class="card">' +
+  h += '<p class="help">Saldot räknas som överförd tid minus normtid för varje arbetsdag (helg och lediga dagar räknas som noll). Ligger saldot vid max sänks dagens förslag och övertiden läggs i en pott som stämplas senare när det finns plats under max. Dagar utan loggad tid påverkar inte saldot. Synka när saldot i ' + sysH() + ' avviker.</p></div>';
+  h += G('data', 'Data', lastBackup() ? 'kopia ' + dm(lastBackup()) : 'ingen kopia') + '<div class="card">' +
     '<button class="btn block" data-savebk>Spara säkerhetskopia</button>' +
     '<button class="btn sec block" data-restore style="margin-top:8px">Återställ från säkerhetskopia</button>' +
     '<button class="btn sec block" data-csv style="margin-top:8px">Kopiera alla poster som CSV</button>' +
     '<p class="help">Allt sparas bara i den här telefonen. Spara en säkerhetskopia regelbundet, till exempel i Filer/iCloud Drive. ' + (lastBackup() ? 'Senaste: ' + esc(longDate(lastBackup())) + '.' : 'Ingen säkerhetskopia sparad än.') + '</p></div>';
-  h += '<p class="help" style="text-align:center;margin:18px 0 6px">Flexlogg ' + APP_VERSION + '</p>';
+  h += '</details><p class="help" style="text-align:center;margin:18px 0 6px">Flexlogg ' + APP_VERSION + '</p>';
   return h;
 }
 
@@ -1346,6 +1366,11 @@ view.addEventListener('click', ev => {
     });
   }
 });
+view.addEventListener('toggle', ev => {
+  const g = ev.target.dataset && ev.target.dataset.g; if (!g) return;
+  if (ev.target.open) OPEN.add(g); else OPEN.delete(g);
+  try { localStorage.setItem('flexlogg-open', JSON.stringify([...OPEN])); } catch (e) {}
+}, true);
 view.addEventListener('change', ev => {
   const t = ev.target, d = t.dataset;
   if (t.id === 'absInput') { const ms = fromInput(t.value); if (ms != null) { SM = { kind: 'abs', ms }; $('#stampShow').textContent = stampLabel(); } return; }
@@ -1391,6 +1416,7 @@ view.addEventListener('change', ev => {
     }
     commitSettings(); return render();
   }
+  if (d.sysname != null) { S.sysName = t.value.trim().slice(0, 24) || 'Kom & Gå'; commitSettings(); return render(); }
   if (d.fon != null) { S.flex.on = t.checked; commitSettings(); return render(); }
   if (d.fdefer != null) { S.flex.defer = t.checked; commitSettings(); return render(); }
   const FK = { fmax: 'max', fmin: 'min', fnorm: 'norm', ffloor: 'floor', fmargin: 'margin' }, fk = Object.keys(FK).find(k => d[k] != null);
